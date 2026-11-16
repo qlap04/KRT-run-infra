@@ -97,7 +97,7 @@ Approval **không** nằm trong YAML: bạn vào Azure DevOps → Pipelines → 
    git checkout -b develop && git push -u origin develop
    ```
    (Repo này đã `git init -b develop`, chưa có commit.)
-2. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): `sc-krtrun-dev` (cho dev/sit/uat/preprod) và `sc-krtrun-prod` (cho prod). Tên phải khớp `serviceConnection` trong `pipelines/variables/<env>.yml`. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và pipeline tạo resource group.
+2. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): `sc-krtrun-dev`, dùng chung cho mọi môi trường. Tên phải khớp `serviceConnection` trong `pipelines/variables/<env>.yml`. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và pipeline tạo resource group.
 3. **Environments**: `krtrun-dev`, `krtrun-sit`, `krtrun-uat`, `krtrun-preprod`, `krtrun-prod`; thêm **Approvals** cho `uat`, `preprod`, `prod`.
 4. **Variable groups** (Pipelines → Library): `krtrun-dev`, `krtrun-sit`, `krtrun-uat`, `krtrun-preprod`, `krtrun-prod`; mỗi group có 1 biến thường `subscriptionId` (Subscription ID của Azure, dạng GUID) và 3 biến secret (bấm biểu tượng khoá):
    - `SESSION_SECRET` (ví dụ `openssl rand -hex 32`), `ADMIN_CODE` (mã nhân viên của bạn), `API_KEY` (chuỗi ngẫu nhiên).
