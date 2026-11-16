@@ -48,6 +48,8 @@ resource links 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01
   tags: tags
   properties: {
     virtualNetwork: { id: vnetId }
+    // Required by the API (no default). false = no auto-registration of VM records.
+    registrationEnabled: false
   }
 }]
 
