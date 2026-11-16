@@ -1,6 +1,6 @@
 # KRT-run (repo `infra`) – Hướng dẫn
 
-Repo này chứa **hạ tầng Azure** bằng **Bicep** và pipeline **provision** (Azure DevOps): VNet, App Service Plan + Web App (Node 22), Function App (Consumption), Storage (Blob/Queue/Table), APIM Consumption, App Insights (tuỳ chọn). Code ứng dụng và pipeline app-deploy nằm ở repo riêng `app`.
+Repo này chứa **hạ tầng Azure** bằng **Bicep** và pipeline **provision** (Azure DevOps): VNet, App Service Plan + Web App (Node 22), Function App (chạy chung gói B1 với web), Storage (Blob/Queue/Table), APIM Consumption, App Insights (tuỳ chọn). Code ứng dụng và pipeline app-deploy nằm ở repo riêng `app`.
 
 ```
 infra/
@@ -96,17 +96,17 @@ Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-r
 
 | Thành phần | SKU | Chi phí/tháng |
 |---|---|---|
-| App Service Plan (dev) | **F1** | 0đ |
-| Function App | Consumption Y1 (1 triệu lần chạy miễn phí) | ~0đ |
+| App Service Plan (dev) | **B1** (~0,019 USD/giờ) | ~87k nếu dùng 8 giờ × 22 ngày làm việc và xoá mỗi ngày |
+| Function App | Chạy chung gói B1 với web | 0đ thêm |
 | Storage (Blob + Queue + Table) | Standard LRS | vài nghìn đồng |
 | VNet + 2 subnet | – | 0đ |
 | APIM | Consumption (1 triệu call miễn phí) | ~0đ |
 | Application Insights | tắt mặc định (`enableInsights=false`) | 0đ |
 | **Tổng bộ dev** | | **< 200k** |
 
-Hiện chỉ dựng bộ **dev** (F1). Nếu sau này thêm môi trường khác với SKU **B1** (~13 USD, khoảng 330k/tháng) thì sẽ vượt 200k.
+Hiện chỉ dựng bộ **dev**, dùng gói **B1**. Giá B1 khoảng 0,019 USD/giờ, tức khoảng 0,15 USD (~4k đồng) cho 8 giờ. Một tháng 22 ngày làm việc khoảng 3,3 USD (~87k đồng). **Điều kiện: dùng xong là chạy pipeline destroy ngay.** Nếu để chạy 24/7 thì B1 tốn khoảng 13 USD/tháng (~330k), vượt 200k.
 
-F1 + Node.js: giới hạn khoảng 60 phút CPU/ngày, 1GB RAM, không có Always On (app "ngủ" sau một lúc không dùng, request đầu tiên chậm). Đủ cho demo; nếu app bị dừng vì hết quota CPU thì nâng lên B1.
+Muốn về gói miễn phí thì đổi `appServicePlanSku = 'F1'` trong `bicep/env/dev.bicepparam`. F1 giới hạn khoảng 60 phút CPU/ngày, 1GB RAM, không có Always On, và **không có VNet**. Khi đó Bicep tự tắt VNet integration, tự mở firewall của storage và Function quay về gói Consumption Y1.
 
 ## 5. Dọn dẹp (tránh tốn tiền)
 
@@ -124,13 +124,36 @@ az apim deletedservice purge --service-name krtrun-dev-apim --location australia
 ```
 Lệnh này **xoá toàn bộ** tài nguyên trong group, hãy chắc chắn trước khi chạy.
 
-**Chi phí theo ngày:** App Service B1 Linux ở `australiaeast` khoảng 0,019 USD/giờ, tức ~5k VND cho 10 giờ dùng. Mẹo: dựng lên, làm xong thì chạy destroy trong ngày. Gói F1 thì không tốn.
+**Chi phí theo ngày:** App Service B1 Linux ở `australiaeast` khoảng 0,019 USD/giờ, tức ~5k VND cho 10 giờ dùng. Mẹo: dựng lên, làm xong thì chạy destroy trong ngày. Quên destroy thì B1 vẫn tính tiền theo giờ.
 
-## 6. Lưu ý cho bài thứ 3 (tách FE / BE)
+## 6. VNet integration (chạy khi dùng B1)
 
-- **F1 không có VNet integration.** Code Bicep tự bỏ qua VNet khi SKU là F1/D1. Muốn BE tích hợp VNet phải dùng **B1** trở lên (~13 USD/tháng). Mẹo: chỉ nâng lên B1 lúc demo rồi hạ về F1 hoặc xoá.
-- **APIM Consumption không nối vào VNet được.** Muốn APIM vào VNet phải dùng Developer (~50 USD) hoặc Standard v2, đều vượt 200k.
-- Function App Consumption (Y1) cũng không có VNet integration.
+Khi `appServicePlanSku` là B1 trở lên, Bicep tự bật các thứ sau:
+- Subnet `snet-app-integration` có **service endpoint** `Microsoft.Storage`.
+- Web app và Function App cùng nằm trên **một gói B1**, cùng gắn vào subnet đó, và bật **route all** (mọi traffic đi ra đều đi qua VNet).
+- Storage bật firewall **Deny**, chỉ cho subnet này đi vào. Nếu không có route all thì traffic tới storage vẫn đi đường public.
+- Function dùng chung gói B1 nên có Always On, không tốn thêm tiền.
+
+```mermaid
+flowchart LR
+  U["Người dùng"] -->|HTTPS public| W
+  C["Client API"] -->|HTTPS + API key| A["APIM Consumption (public)"]
+  A -->|/api/* + API key| W
+  subgraph VNET["VNet 10.20.0.0/16"]
+    subgraph SN["snet-app-integration (service endpoint Storage)"]
+      W["Web App B1"]
+      F["Function (cùng gói B1)"]
+    end
+  end
+  W -->|qua service endpoint| ST
+  F -->|qua service endpoint| ST
+  ST["Storage: firewall Deny, chỉ cho subnet"]
+```
+
+Cần biết:
+- **Không xem được dữ liệu storage từ laptop.** Vì firewall Deny, Storage browser trên portal hoặc Azure Storage Explorer sẽ báo lỗi 403. Muốn xem thì tạm thêm IP của bạn: Storage account → **Networking** → thêm IP vào **Firewall**. Xem xong thì xoá đi. Còn tạo container, queue, table bằng Bicep vẫn chạy bình thường, vì đó là thao tác quản lý của Azure Resource Manager, không bị firewall chặn.
+- Function vẫn kết nối storage bằng key, vì quyền gán role của pipeline chỉ cho 3 role Contributor (Blob, Queue, Table). Key này nằm trong app setting, không bị output ra ngoài.
+- **APIM Consumption không nối vào VNet được.** Muốn APIM vào VNet phải dùng Developer (~50 USD) hoặc Standard v2, đều vượt 200k. Vì vậy APIM vẫn public và gọi web bằng API key.
 - Static Web Apps (Free) cho FE, BE đặt sau APIM: khi đó `API_KEY` nên đặt bằng policy `set-header` trong APIM thay vì để lộ ở FE.
 
 ## 7. Giới hạn hiện tại (nên biết)
@@ -139,7 +162,8 @@ Lệnh này **xoá toàn bộ** tài nguyên trong group, hãy chắc chắn tr�
 - Chưa có giới hạn số lần đăng nhập sai (rate limit).
 - `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` hiện đặt thành *app setting*. Muốn an toàn hơn thì chuyển sang Key Vault reference.
 - Bicep và pipeline **chưa được chạy thật trên Azure** (chỉ build/validate cú pháp).
-- Linux Consumption (Y1) của Function có lộ trình ngừng hỗ trợ trong tương lai; xem docs Azure khi triển khai lâu dài.
+- Linux Consumption (Y1) của Function (chỉ dùng khi chọn F1) có lộ trình ngừng hỗ trợ trong tương lai; xem docs Azure khi triển khai lâu dài.
+- Pipeline app-deploy deploy Function lên gói B1 (không phải Consumption). Cần kiểm tra lại task deploy function ở repo `app` lần chạy đầu.
 
 ## 8. Từ khó
 

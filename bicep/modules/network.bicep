@@ -16,6 +16,10 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
         name: 'snet-app-integration'
         properties: {
           addressPrefix: '10.20.1.0/24'
+          // Lets the storage firewall recognise traffic from this subnet
+          serviceEndpoints: [
+            { service: 'Microsoft.Storage', locations: [ '*' ] }
+          ]
           delegations: [
             {
               name: 'webapp-delegation'

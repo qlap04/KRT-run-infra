@@ -4,7 +4,7 @@ param location string
 param tags object
 @description('F1 (free), B1... Default F1')
 param skuName string = 'F1'
-@description('Subnet id for VNet integration (empty = off; F1 does not support it)')
+@description('Subnet id for VNet integration (empty = off; F1 does not support it). When set, all outbound traffic is routed through the VNet')
 param integrationSubnetId string = ''
 param storageAccountName string
 param appSettings object = {}
@@ -26,7 +26,7 @@ var baseSettings = {
   SCM_DO_BUILD_DURING_DEPLOYMENT: string(buildOnDeploy)
 }
 
-resource web 'Microsoft.Web/sites@2023-12-01' = {
+resource web 'Microsoft.Web/sites@2025-03-01' = {
   name: webAppName
   location: location
   tags: tags
@@ -36,6 +36,7 @@ resource web 'Microsoft.Web/sites@2023-12-01' = {
     serverFarmId: plan.id
     httpsOnly: true
     virtualNetworkSubnetId: empty(integrationSubnetId) ? null : integrationSubnetId
+    outboundVnetRouting: empty(integrationSubnetId) ? null : { allTraffic: true }
     siteConfig: {
       linuxFxVersion: 'NODE|22-lts'
       appCommandLine: 'node server.js'
@@ -51,6 +52,7 @@ resource web 'Microsoft.Web/sites@2023-12-01' = {
   }
 }
 
+output planId string = plan.id
 output principalId string = web.identity.principalId
 output defaultHostName string = web.properties.defaultHostName
 output name string = web.name

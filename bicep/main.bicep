@@ -15,7 +15,7 @@ param resourceEnv string = 'dev'
 
 param location string = 'australiaeast'
 
-@description('App Service Plan SKU: F1 (free) | B1 | ... F1 has no VNet integration')
+@description('App Service Plan SKU: F1 (free) | B1 | ... F1 has no VNet integration; B1+ enables VNet integration and a locked-down storage firewall')
 param appServicePlanSku string = 'F1'
 
 @description('Create an APIM Consumption instance')
@@ -68,6 +68,7 @@ module storage 'modules/storage.bicep' = {
     queueName: queueName
     incomingContainer: incomingContainer
     proofsContainer: proofsContainer
+    allowedSubnetId: vnetIntegrationSupported ? network.outputs.appIntegrationSubnetId : ''
   }
 }
 
@@ -112,6 +113,9 @@ module func 'modules/function.bicep' = {
     functionAppName: functionAppName
     location: location
     tags: tags
+    // B1+: the function shares the web plan and joins the VNet; F1: it keeps its own Consumption (Y1) plan
+    planId: vnetIntegrationSupported ? web.outputs.planId : ''
+    integrationSubnetId: vnetIntegrationSupported ? network.outputs.appIntegrationSubnetId : ''
     storageAccountName: storage.outputs.name
     appSettings: sharedSettings
   }
