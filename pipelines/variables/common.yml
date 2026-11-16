@@ -1,4 +1,3 @@
 # Variables shared by every environment. NO secrets here.
 variables:
-  vmImage: ubuntu-24.04
   projectName: krtrun

@@ -25,7 +25,7 @@ stages:
   jobs:
   - deployment: Deploy
     displayName: Deploy infra
-    pool: { vmImage: $(vmImage) }
+    pool: { vmImage: ubuntu-24.04 }
     environment: krtrun-${{ parameters.environment }}
     strategy:
       runOnce:

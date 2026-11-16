@@ -16,7 +16,7 @@ stages:
   jobs:
   - deployment: Destroy
     displayName: Delete $(resourceGroup)
-    pool: { vmImage: $(vmImage) }
+    pool: { vmImage: ubuntu-24.04 }
     environment: krtrun-dev
     strategy:
       runOnce:
