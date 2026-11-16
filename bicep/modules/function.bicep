@@ -26,7 +26,7 @@ resource plan 'Microsoft.Web/serverfarms@2023-12-01' = if (!dedicated) {
 }
 
 // Host storage (AzureWebJobsStorage) uses a key so the role set stays Blob/Queue/Table Data Contributor only.
-// The key only lives in the app setting and is NEVER output. Traffic reaches storage through the VNet service endpoint.
+// The key only lives in the app setting and is NEVER output. On B1+ the traffic reaches storage through the private endpoints (route all + private DNS).
 // A dedicated Linux plan needs no WEBSITE_CONTENTAZUREFILECONNECTIONSTRING / WEBSITE_CONTENTSHARE.
 var hostConnection = 'DefaultEndpointsProtocol=https;AccountName=${sa.name};AccountKey=${sa.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
 

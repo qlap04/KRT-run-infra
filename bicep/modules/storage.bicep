@@ -6,8 +6,8 @@ param incomingContainer string = 'incoming'
 param proofsContainer string = 'proofs'
 param queueName string = 'upload-jobs'
 param tableNames array = [ 'Users', 'Runs', 'AuditLog' ]
-@description('Subnet id allowed through the storage firewall (empty = firewall open). When set, everything else is denied')
-param allowedSubnetId string = ''
+@description('true = no public access, reachable only through private endpoints (see storage-private-endpoints.bicep)')
+param privateOnly bool = false
 
 resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: name
@@ -20,16 +20,11 @@ resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     allowBlobPublicAccess: false
     supportsHttpsTrafficOnly: true
     accessTier: 'Hot'
-    // Data plane only; ARM (containers, queues, tables, role assignments) is not affected by networkAcls
-    networkAcls: empty(allowedSubnetId) ? {
-      defaultAction: 'Allow'
+    // Data plane only; ARM (containers, queues, tables, role assignments) is not affected
+    publicNetworkAccess: privateOnly ? 'Disabled' : 'Enabled'
+    networkAcls: {
+      defaultAction: privateOnly ? 'Deny' : 'Allow'
       bypass: 'AzureServices'
-    } : {
-      defaultAction: 'Deny'
-      bypass: 'AzureServices'
-      virtualNetworkRules: [
-        { id: allowedSubnetId, action: 'Allow' }
-      ]
     }
   }
 }

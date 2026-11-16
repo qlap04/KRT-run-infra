@@ -15,7 +15,7 @@ param resourceEnv string = 'dev'
 
 param location string = 'australiaeast'
 
-@description('App Service Plan SKU: F1 (free) | B1 | ... F1 has no VNet integration; B1+ enables VNet integration and a locked-down storage firewall')
+@description('App Service Plan SKU: F1 (free) | B1 | ... F1 has no VNet integration; B1+ enables VNet integration and private-only storage')
 param appServicePlanSku string = 'F1'
 
 @description('Create an APIM Consumption instance')
@@ -40,8 +40,8 @@ param apiKey string = ''
 param vnetAddressPrefix string
 @description('Subnet for App Service VNet integration (web + function)')
 param appSubnetPrefix string
-@description('Reserved subnet for later use')
-param reservedSubnetPrefix string
+@description('Subnet for the storage private endpoints')
+param peSubnetPrefix string
 
 param queueName string = 'upload-jobs'
 param incomingContainer string = 'incoming'
@@ -66,7 +66,7 @@ module network 'modules/network.bicep' = {
     tags: tags
     addressPrefix: vnetAddressPrefix
     appSubnetPrefix: appSubnetPrefix
-    reservedSubnetPrefix: reservedSubnetPrefix
+    peSubnetPrefix: peSubnetPrefix
   }
 }
 
@@ -79,7 +79,18 @@ module storage 'modules/storage.bicep' = {
     queueName: queueName
     incomingContainer: incomingContainer
     proofsContainer: proofsContainer
-    allowedSubnetId: vnetIntegrationSupported ? network.outputs.appIntegrationSubnetId : ''
+    privateOnly: vnetIntegrationSupported
+  }
+}
+
+module storagePe 'modules/storage-private-endpoints.bicep' = if (vnetIntegrationSupported) {
+  name: 'storage-pe'
+  params: {
+    location: location
+    tags: tags
+    storageAccountName: storage.outputs.name
+    vnetId: network.outputs.vnetId
+    peSubnetId: network.outputs.peSubnetId
   }
 }
 
@@ -93,8 +104,10 @@ var sharedSettings = {
   TABLE_AUDIT: 'AuditLog'
 }
 
+// dependsOn storagePe: the private endpoints and DNS must exist before the apps start talking to storage
 module web 'modules/web.bicep' = {
   name: 'web'
+  dependsOn: [ storagePe ]
   params: {
     planName: '${base}-plan'
     webAppName: webAppName
@@ -114,6 +127,7 @@ module web 'modules/web.bicep' = {
 
 module func 'modules/function.bicep' = {
   name: 'function'
+  dependsOn: [ storagePe ]
   params: {
     planName: '${base}-funcplan'
     functionAppName: functionAppName

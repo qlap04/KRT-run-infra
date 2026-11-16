@@ -6,8 +6,8 @@ param tags object
 param addressPrefix string
 @description('App integration subnet (web + function), e.g. 10.20.1.0/24')
 param appSubnetPrefix string
-@description('Reserved subnet for later use, e.g. 10.20.2.0/24')
-param reservedSubnetPrefix string
+@description('Private endpoints subnet, e.g. 10.20.2.0/24')
+param peSubnetPrefix string
 
 resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
   name: name
@@ -20,10 +20,6 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
         name: 'snet-app-integration'
         properties: {
           addressPrefix: appSubnetPrefix
-          // Lets the storage firewall recognise traffic from this subnet
-          serviceEndpoints: [
-            { service: 'Microsoft.Storage', locations: [ '*' ] }
-          ]
           delegations: [
             {
               name: 'webapp-delegation'
@@ -33,8 +29,8 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
         }
       }
       {
-        name: 'snet-reserved'
-        properties: { addressPrefix: reservedSubnetPrefix }
+        name: 'snet-pe'
+        properties: { addressPrefix: peSubnetPrefix }
       }
     ]
   }
@@ -42,3 +38,4 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
 
 output vnetId string = vnet.id
 output appIntegrationSubnetId string = '${vnet.id}/subnets/snet-app-integration'
+output peSubnetId string = '${vnet.id}/subnets/snet-pe'
