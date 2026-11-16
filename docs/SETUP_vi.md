@@ -8,7 +8,7 @@ infra/
 ├── .cursor/rules/bicep.mdc
 ├── bicep/
 │   ├── main.bicep
-│   ├── modules/           # network, storage, web, function, roles, apim
+│   ├── modules/           # network, storage, storage-private-endpoints, web, function, roles, apim
 │   └── env/               # dev.bicepparam (thêm <env>.bicepparam khi mở rộng)
 ├── pipelines/             # provision.yml, destroy.yml, templates/, variables/<env>.yml
 └── docs/SETUP_vi.md
@@ -100,12 +100,14 @@ Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-r
 | Function App | Chạy chung gói B1 với web | 0đ thêm |
 | Storage (Blob + Queue + Table) | Standard LRS | vài nghìn đồng |
 | VNet + 2 subnet | – | 0đ |
+| Private endpoint cho storage (blob, queue, table) | ~0,01 USD/giờ mỗi cái × 3 | ~0,5 USD (8 giờ × 22 ngày) |
+| Private DNS zone (blob, queue, table) | ~0,50 USD/zone/tháng × 3 | ~1,5 USD (tính theo tháng, xoá sớm vẫn có thể bị tính gần đủ) |
 | APIM | Consumption (1 triệu call miễn phí) | ~0đ |
-| **Tổng bộ dev** | | **< 200k** |
+| **Tổng bộ dev** | B1 + private endpoint + DNS (~2 USD, ~50k đồng) | **< 200k** (khoảng 140k) |
 
 Hiện chỉ dựng bộ **dev**, dùng gói **B1**. Giá B1 khoảng 0,019 USD/giờ, tức khoảng 0,15 USD (~4k đồng) cho 8 giờ. Một tháng 22 ngày làm việc khoảng 3,3 USD (~87k đồng). **Điều kiện: dùng xong là chạy pipeline destroy ngay.** Nếu để chạy 24/7 thì B1 tốn khoảng 13 USD/tháng (~330k), vượt 200k.
 
-Muốn về gói miễn phí thì đổi `appServicePlanSku = 'F1'` trong `bicep/env/dev.bicepparam`. F1 giới hạn khoảng 60 phút CPU/ngày, 1GB RAM, không có Always On, và **không có VNet**. Khi đó Bicep tự tắt VNet integration, tự mở firewall của storage và Function quay về gói Consumption Y1.
+Muốn về gói miễn phí thì đổi `appServicePlanSku = 'F1'` trong `bicep/env/dev.bicepparam`. F1 giới hạn khoảng 60 phút CPU/ngày, 1GB RAM, không có Always On, và **không có VNet**. Khi đó Bicep tự tắt VNet integration, tự bỏ private endpoint, để storage mở public và Function quay về gói Consumption Y1.
 
 ## 5. Dọn dẹp (tránh tốn tiền)
 
@@ -128,32 +130,37 @@ Lệnh này **xoá toàn bộ** tài nguyên trong group, hãy chắc chắn tr�
 ## 6. VNet integration (chạy khi dùng B1)
 
 Khi `appServicePlanSku` là B1 trở lên, Bicep tự bật các thứ sau:
-- Subnet `snet-app-integration` có **service endpoint** `Microsoft.Storage`.
-- Web app và Function App cùng nằm trên **một gói B1**, cùng gắn vào subnet đó, và bật **route all** (mọi traffic đi ra đều đi qua VNet).
-- Storage bật firewall **Deny**, chỉ cho subnet này đi vào. Nếu không có route all thì traffic tới storage vẫn đi đường public.
+- Web app và Function App cùng nằm trên **một gói B1**, cùng gắn vào subnet `snet-app-integration`, và bật **route all** (mọi traffic đi ra đều đi qua VNet).
+- Subnet `snet-pe` chứa **3 private endpoint** của storage (blob, queue, table). Mỗi endpoint là một "card mạng" có IP private (vd `10.20.2.4`) nối thẳng vào storage.
+- **3 Private DNS zone** `privatelink.blob/queue/table.core.windows.net`. Zone này làm cho tên `<storage>.blob.core.windows.net` phân giải ra IP private thay vì IP public. Thiếu zone thì app vẫn ra IP public và bị chặn.
+- **3 VNet link**, mỗi zone một link tới VNet. Link gắn vào **VNet chứ không gắn vào subnet**, nên mọi subnet trong VNet đều dùng chung, không cần thêm link cho từng subnet.
+- Storage **tắt hẳn public access** (`publicNetworkAccess: Disabled`). Chỉ đi vào được qua private endpoint.
 - Function dùng chung gói B1 nên có Always On, không tốn thêm tiền.
 
-Bảng IP của mỗi môi trường chỉ nằm trong `bicep/env/<env>.bicepparam` (`vnetAddressPrefix`, `appSubnetPrefix`, `reservedSubnetPrefix`). Không hardcode IP trong module. Mỗi môi trường nên dùng một dải riêng (vd dev `10.20.0.0/16`, sau này prod `10.30.0.0/16`) để sau này peering VNet không bị trùng.
+Bảng IP của mỗi môi trường chỉ nằm trong `bicep/env/<env>.bicepparam` (`vnetAddressPrefix`, `appSubnetPrefix`, `peSubnetPrefix`). Không hardcode IP trong module. Mỗi môi trường nên dùng một dải riêng (vd dev `10.20.0.0/16`, sau này prod `10.30.0.0/16`) để sau này peering VNet không bị trùng.
 
 ```mermaid
 flowchart LR
   U["Người dùng"] -->|HTTPS public| W
   C["Client API"] -->|HTTPS + API key| A["APIM Consumption (public)"]
   A -->|/api/* + API key| W
-  subgraph VNET["VNet 10.20.0.0/16"]
-    subgraph SN["snet-app-integration (service endpoint Storage)"]
+  subgraph VNET["VNet 10.20.0.0/16 (link tới 3 Private DNS zone)"]
+    subgraph SN["snet-app-integration"]
       W["Web App B1"]
       F["Function (cùng gói B1)"]
     end
+    subgraph PE["snet-pe"]
+      PEP["3 private endpoint<br/>blob, queue, table"]
+    end
   end
-  W -->|qua service endpoint| ST
-  F -->|qua service endpoint| ST
-  ST["Storage: firewall Deny, chỉ cho subnet"]
+  W -->|IP private| PEP
+  F -->|IP private| PEP
+  PEP --> ST["Storage: public access tắt"]
 ```
 
 Cần biết:
-- **Không xem được dữ liệu storage từ laptop.** Vì firewall Deny, Storage browser trên portal hoặc Azure Storage Explorer sẽ báo lỗi 403. Muốn xem thì tạm thêm IP của bạn: Storage account → **Networking** → thêm IP vào **Firewall**. Xem xong thì xoá đi. Còn tạo container, queue, table bằng Bicep vẫn chạy bình thường, vì đó là thao tác quản lý của Azure Resource Manager, không bị firewall chặn.
-- Function vẫn kết nối storage bằng key, vì quyền gán role của pipeline chỉ cho 3 role Contributor (Blob, Queue, Table). Key này nằm trong app setting, không bị output ra ngoài.
+- **Không xem được dữ liệu storage từ laptop.** Public access đã tắt, nên Storage browser trên portal hoặc Azure Storage Explorer sẽ báo lỗi 403. Muốn xem thì tạm bật: Storage account → **Networking** → **Public network access** = *Enabled from selected virtual networks and IP addresses* rồi thêm IP của bạn. Xem xong thì tắt lại. Lần deploy Bicep tiếp theo cũng tự tắt lại. Tạo container, queue, table bằng Bicep vẫn chạy bình thường, vì đó là thao tác quản lý của Azure Resource Manager, không đi qua mạng dữ liệu của storage.
+- Function vẫn kết nối storage bằng key, vì quyền gán role của pipeline chỉ cho 3 role Contributor (Blob, Queue, Table). Key này nằm trong app setting, không bị output ra ngoài. Traffic của Function tới storage đi qua private endpoint nhờ route all và Private DNS.
 - **APIM Consumption không nối vào VNet được.** Muốn APIM vào VNet phải dùng Developer (~50 USD) hoặc Standard v2, đều vượt 200k. Vì vậy APIM vẫn public và gọi web bằng API key.
 - Static Web Apps (Free) cho FE, BE đặt sau APIM: khi đó `API_KEY` nên đặt bằng policy `set-header` trong APIM thay vì để lộ ở FE.
 

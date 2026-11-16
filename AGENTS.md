@@ -11,7 +11,7 @@ Resources: VNet, App Service Plan + Web App (Node 22), Function App (shares the 
 ## Rules
 - NEVER run `az deployment`, `az login`, `terraform apply` or deploy without Kai's explicit OK. Only validate: `az bicep build` / `build-params`.
 - No hardcoded secrets; never output secrets from Bicep. Read them with `readEnvironmentVariable()`; the values live in the Azure DevOps variable group `krtrun-<env>`.
-- Cheapest SKUs by default (budget < 200k VND/month): APIM Consumption, Y1 when on F1. `dev` now uses App Service plan **B1** (~0.019 USD/h) so VNet integration really works; destroy it after use via the destroy pipeline. On B1+ the function shares the web plan, both route all traffic through the VNet and the storage firewall is Deny (subnet only); on F1 all of that switches off.
+- Cheapest SKUs by default (budget < 200k VND/month): APIM Consumption, Y1 when on F1. `dev` now uses App Service plan **B1** (~0.019 USD/h) so VNet integration really works; destroy it after use via the destroy pipeline. On B1+ the function shares the web plan, both route all traffic through the VNet and storage is private-only (public access disabled; private endpoints for blob/queue/table in `snet-pe` + `privatelink.*` Private DNS zones linked to the VNet); on F1 all of that switches off and storage stays public.
 - Only `dev` is active. Each environment has its own files `bicep/env/<env>.bicepparam` and `pipelines/variables/<env>.yml`; they must stay in sync.
 - If you rename a resource here, update `pipelines/variables/<env>.yml` in the `app` repo too.
 - `destroy.yml` is manual only and hardcoded to `dev`; its safety is the approval gate of environment `krtrun-dev`.
