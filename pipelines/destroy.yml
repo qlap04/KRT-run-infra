@@ -25,7 +25,7 @@ stages:
           - task: AzureCLI@3
             displayName: Delete & purge APIM
             inputs:
-              azureSubscription: ${{ variables.serviceConnection }}
+              connectedServiceNameARM: sc-krtrun-dev
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
@@ -50,6 +50,6 @@ stages:
             inputs:
               deploymentScope: Resource Group
               action: DeleteRG
-              azureResourceManagerConnection: ${{ variables.serviceConnection }}
+              azureResourceManagerConnection: sc-krtrun-dev
               subscriptionId: $(subscriptionId)
               resourceGroupName: $(resourceGroup)

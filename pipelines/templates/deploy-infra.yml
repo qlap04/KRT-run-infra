@@ -1,8 +1,10 @@
-# Deploy infra for one environment (what-if runs in the Validate stage).
+# Deploy infra for one environment (RG and what-if are done in the Plan stage).
 parameters:
 - name: stageName
   type: string
 - name: environment
+  type: string
+- name: serviceConnection
   type: string
 - name: dependsOn
   type: object
@@ -31,16 +33,6 @@ stages:
           steps:
           - checkout: self
 
-          - task: AzureCLI@3
-            displayName: Ensure resource group
-            inputs:
-              azureSubscription: ${{ variables.serviceConnection }}
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                az group create --name $(resourceGroup) --location $(location) \
-                  --tags project=$(projectName) env=$(environment) --output none
-
           - task: BicepDeploy@0
             displayName: Bicep deploy
             inputs:
@@ -48,7 +40,7 @@ stages:
               operation: create
               name: krtrun-$(environment)-$(Build.BuildId)
               scope: resourceGroup
-              azureResourceManagerConnection: ${{ variables.serviceConnection }}
+              azureResourceManagerConnection: ${{ parameters.serviceConnection }}
               subscriptionId: $(subscriptionId)
               resourceGroupName: $(resourceGroup)
               templateFile: bicep/main.bicep

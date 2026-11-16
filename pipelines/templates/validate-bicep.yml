@@ -1,45 +1,52 @@
-# Validate Bicep for one environment:
-# 1. Offline: build, lint and build-params (fails fast, no Azure call).
-# 2. Online: what-if against the resource group (read-only, nothing is changed).
+# Plan stage jobs for one environment:
+# - Build: build, lint and build-params (offline, no Azure call).
+# - WhatIf: create the resource group if missing (empty RG is free), then
+#   preview the changes. Nothing else is changed in Azure.
 parameters:
 - name: environment
   type: string
+- name: serviceConnection
+  type: string
 
 jobs:
-- job: Validate
-  displayName: Validate Bicep
+- job: Build
+  displayName: Build and lint
   pool: { vmImage: $(vmImage) }
   steps:
   - checkout: self
-
   - script: |
       set -e
       az bicep build --file bicep/main.bicep --stdout > /dev/null
       az bicep lint --file bicep/main.bicep
       az bicep build-params --file bicep/env/${{ parameters.environment }}.bicepparam --stdout > /dev/null
     displayName: Build and lint
+    env:
+      SESSION_SECRET: placeholder
+      ADMIN_CODE: placeholder
+      API_KEY: placeholder
 
+- job: WhatIf
+  displayName: What-if
+  dependsOn: Build
+  pool: { vmImage: $(vmImage) }
+  steps:
+  - checkout: self
   - task: AzureCLI@3
-    displayName: Check resource group
+    displayName: Ensure resource group
     inputs:
-      azureSubscription: ${{ variables.serviceConnection }}
+      connectedServiceNameARM: ${{ parameters.serviceConnection }}
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
-        if [ "`az group exists --name $(resourceGroup)`" = "true" ]; then
-          echo "##vso[task.setvariable variable=rgExists]true"
-        else
-          echo "RG $(resourceGroup) missing, skip what-if (created on Deploy)."
-        fi
-
+        az group create --name $(resourceGroup) --location $(location) \
+          --tags project=$(projectName) env=$(environment) --output none
   - task: BicepDeploy@0
     displayName: Bicep what-if
-    condition: and(succeeded(), eq(variables['rgExists'], 'true'))
     inputs:
       type: deployment
       operation: whatIf
       scope: resourceGroup
-      azureResourceManagerConnection: ${{ variables.serviceConnection }}
+      azureResourceManagerConnection: ${{ parameters.serviceConnection }}
       subscriptionId: $(subscriptionId)
       resourceGroupName: $(resourceGroup)
       templateFile: bicep/main.bicep

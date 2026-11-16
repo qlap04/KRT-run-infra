@@ -45,10 +45,10 @@ flowchart LR
 ```
 
 Giải thích dễ hiểu (giống việc **gọi món ăn**):
-1. **Nhánh Git** là "bàn nào gọi món". Hiện chỉ có nhánh `develop`, pipeline chạy Validate rồi deploy **DEV**.
+1. **Nhánh Git** là "bàn nào gọi món". Hiện chỉ có nhánh `develop`, pipeline chạy Plan rồi deploy **DEV**.
 2. Stage DeployDev **tự nạp file `pipelines/variables/dev.yml`** (tên resource group, region, SKU, tên web app...) và phần dùng chung ở `common.yml`.
 3. **Secret không nằm trong repo.** Chúng nằm trong *variable group* `krtrun-dev` trên Azure DevOps. Task chuyển chúng thành biến môi trường, file `.bicepparam` đọc bằng `readEnvironmentVariable('SESSION_SECRET', '')`.
-4. Pipeline dùng task có sẵn `BicepDeploy@0` (what-if ở stage Validate, deploy ở stage DEV) với file `bicep/env/dev.bicepparam`; mọi giá trị tham số nằm trong file này. File `pipelines/variables/dev.yml` chỉ giữ tên resource group, region, tên web app... để pipeline dùng, nên phải khớp với bicepparam.
+4. Pipeline dùng task có sẵn `BicepDeploy@0` (what-if ở stage Plan, deploy ở stage DEV) với file `bicep/env/dev.bicepparam`; mọi giá trị tham số nằm trong file này. File `pipelines/variables/dev.yml` chỉ giữ tên resource group, region, tên web app... để pipeline dùng, nên phải khớp với bicepparam.
 5. Bicep ghi các giá trị đó vào **app settings** của Web App và Function App.
 6. Khi chạy, Azure đưa app settings vào **`process.env`**, và `config.js` đọc ra.
 
@@ -59,15 +59,15 @@ Giải thích dễ hiểu (giống việc **gọi món ăn**):
 ```mermaid
 flowchart TD
   subgraph develop
-    D1[Validate] --> D2[DEV]
+    D1[Plan] --> D2[DEV]
   end
 ```
 
 | Nhánh | Các stage chạy (tuần tự) | Approval |
 |---|---|---|
-| `develop` | Validate → **DEV** | Environment `krtrun-dev` |
+| `develop` | Plan → **DEV** | Environment `krtrun-dev` |
 
-Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.yml` của repo này theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Stage đầu là **Validate** (`pipelines/templates/validate-bicep.yml`): bicep build, lint, build-params (không cần Azure), rồi what-if (chỉ xem trước, không đổi gì). Stage deploy dùng `pipelines/templates/deploy-infra.yml` (chỉ deploy, chờ approve).
+Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.yml` của repo này theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Stage đầu là **Plan** (`pipelines/templates/validate-bicep.yml`) có 2 job: **Build** (bicep build, lint, build-params, không cần Azure) rồi **WhatIf** (tạo resource group rỗng nếu chưa có, miễn phí, rồi xem trước thay đổi). Stage deploy dùng `pipelines/templates/deploy-infra.yml` (chỉ deploy, chờ approve).
 Approval **không** nằm trong YAML: bạn vào Azure DevOps → Pipelines → Environments → `krtrun-dev` → Approvals and checks, rồi bật Approvals.
 
 Nhánh tính năng (`feature/<tên>`) cắt từ `develop` và merge lại bằng pull request.
@@ -80,13 +80,13 @@ Nhánh tính năng (`feature/<tên>`) cắt từ `develop` và merge lại bằn
 
 Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-run-infra](https://github.com/qlap04/KRT-run-infra). Không cần tạo repo Azure Repos hay push lại.
 
-1. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): tạo `sc-krtrun-dev`. Tên phải khớp `serviceConnection` trong `pipelines/variables/dev.yml`. Có thể dùng chung với repo `app` nếu cùng project. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và pipeline tạo resource group.
+1. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): tạo `sc-krtrun-dev`. Tên phải khớp `serviceConnection` truyền vào template trong `pipelines/provision.yml` (và ghi thẳng trong `pipelines/destroy.yml`). Có thể dùng chung với repo `app` nếu cùng project. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và pipeline tạo resource group.
 2. **Environments**: chỉ cần `krtrun-dev`; vào Approvals and checks rồi **bật Approvals** (pipeline provision và destroy đều chờ duyệt ở đây).
 3. **Variable groups** (Pipelines → Library): chỉ cần `krtrun-dev`. Group này có 1 biến thường `subscriptionId` (Subscription ID của Azure, dạng GUID) và 3 biến secret (bấm biểu tượng khoá):
    - `SESSION_SECRET` (ví dụ `openssl rand -hex 32`), `ADMIN_CODE` (mã nhân viên của bạn), `API_KEY` (chuỗi ngẫu nhiên).
 4. **Tạo pipeline** (Pipelines → New pipeline → chọn **GitHub (YAML)** → chọn repo `qlap04/KRT-run-infra` → *Existing Azure Pipelines YAML file*): `krtrun-provision` → `/pipelines/provision.yml`. Lần đầu Azure DevOps sẽ xin quyền truy cập GitHub.
 5. **Đổi giá trị thật**: `publisherEmail` trong `bicep/env/dev.bicepparam`; `prefix` nếu tên `krtrun-dev-web` bị trùng toàn cầu (đổi ở cả `pipelines/variables/dev.yml` + `bicep/env/dev.bicepparam` **và** `pipelines/variables/dev.yml` của repo `app`).
-6. **Chạy**: đẩy hoặc merge vào `develop` → Validate (build, lint, what-if) → (approve trên `krtrun-dev`) → deploy DEV. Sau đó mới chạy `app-deploy` ở repo `app`.
+6. **Chạy**: đẩy hoặc merge vào `develop` → Plan (build, lint, what-if) → (approve trên `krtrun-dev`) → deploy DEV. Sau đó mới chạy `app-deploy` ở repo `app`.
 
 Đọc kết quả what-if trước khi bấm Approve.
 
