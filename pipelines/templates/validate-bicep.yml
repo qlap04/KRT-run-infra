@@ -1,4 +1,10 @@
-# Validate Bicep (no Azure connection).
+# Validate Bicep for one environment:
+# 1. Offline: build, lint and build-params (fails fast, no Azure call).
+# 2. Online: what-if against the resource group (read-only, nothing is changed).
+parameters:
+- name: environment
+  type: string
+
 jobs:
 - job: Validate
   displayName: Validate Bicep
@@ -8,10 +14,37 @@ jobs:
 
   - script: |
       set -e
-      az bicep install
       az bicep build --file bicep/main.bicep --stdout > /dev/null
-      for env in dev; do
-        echo "== build-params $env"
-        az bicep build-params --file bicep/env/$env.bicepparam --stdout > /dev/null
-      done
-    displayName: Build main + all params
+      az bicep lint --file bicep/main.bicep
+      az bicep build-params --file bicep/env/${{ parameters.environment }}.bicepparam --stdout > /dev/null
+    displayName: Build and lint
+
+  - task: AzureCLI@3
+    displayName: Check resource group
+    inputs:
+      azureSubscription: $(serviceConnection)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        if [ "`az group exists --name $(resourceGroup)`" = "true" ]; then
+          echo "##vso[task.setvariable variable=rgExists]true"
+        else
+          echo "RG $(resourceGroup) missing, skip what-if (created on Deploy)."
+        fi
+
+  - task: BicepDeploy@0
+    displayName: Bicep what-if
+    condition: and(succeeded(), eq(variables['rgExists'], 'true'))
+    inputs:
+      type: deployment
+      operation: whatIf
+      scope: resourceGroup
+      azureResourceManagerConnection: $(serviceConnection)
+      subscriptionId: $(subscriptionId)
+      resourceGroupName: $(resourceGroup)
+      templateFile: bicep/main.bicep
+      parametersFile: bicep/env/${{ parameters.environment }}.bicepparam
+    env:
+      SESSION_SECRET: $(SESSION_SECRET)
+      ADMIN_CODE: $(ADMIN_CODE)
+      API_KEY: $(API_KEY)

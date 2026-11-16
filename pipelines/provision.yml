@@ -1,6 +1,6 @@
 # KRT-run provision (repo: infra)
 #
-# develop → Validate → DEV
+# develop → Validate (build, lint, what-if) → DEV
 # Approval: Azure DevOps Environment krtrun-dev.
 name: krtrun-provision-$(Date:yyyyMMdd)$(Rev:.r)
 
@@ -21,8 +21,12 @@ stages:
   displayName: Validate
   variables:
   - template: variables/common.yml
+  - template: variables/dev.yml
+  - group: krtrun-dev
   jobs:
   - template: templates/validate-bicep.yml
+    parameters:
+      environment: dev
 
 - template: templates/deploy-infra.yml
   parameters:
