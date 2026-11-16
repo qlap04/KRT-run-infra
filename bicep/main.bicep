@@ -24,8 +24,6 @@ param deployApim bool = true
 param publisherEmail string = 'admin@example.com'
 param publisherName string = 'KRT-run'
 
-@description('Run the SCM build (npm install) when deploying the web app')
-param webBuildOnDeploy bool = true
 
 @secure()
 @description('Session signing key (read from an environment variable in .bicepparam)')
@@ -112,7 +110,6 @@ module web 'modules/web.bicep' = {
     skuName: appServicePlanSku
     integrationSubnetId: network.outputs.appIntegrationSubnetId
     storageAccountName: storage.outputs.name
-    buildOnDeploy: webBuildOnDeploy
     appSettings: union(sharedSettings, {
       SESSION_SECRET: sessionSecret
       ADMIN_CODE: adminCode

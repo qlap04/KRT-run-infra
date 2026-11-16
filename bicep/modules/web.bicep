@@ -8,7 +8,6 @@ param skuName string = 'B1'
 param integrationSubnetId string
 param storageAccountName string
 param appSettings object = {}
-param buildOnDeploy bool = true
 
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: planName
@@ -21,7 +20,7 @@ resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
 
 var baseSettings = {
   STORAGE_ACCOUNT_NAME: storageAccountName
-  SCM_DO_BUILD_DURING_DEPLOYMENT: string(buildOnDeploy)
+  SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
 }
 
 resource web 'Microsoft.Web/sites@2025-03-01' = {
