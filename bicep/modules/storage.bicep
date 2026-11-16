@@ -2,8 +2,8 @@
 param name string
 param location string
 param tags object
-param incomingContainer string = 'incoming'
-param proofsContainer string = 'proofs'
+@description('Single blob container for proof images: uploads under incoming/, processed under processed/')
+param blobContainer string = 'proofs'
 param queueName string = 'upload-jobs'
 param tableNames array = [ 'Users', 'Runs', 'AuditLog' ]
 @description('true = no public access, reachable only through private endpoints (see storage-private-endpoints.bicep)')
@@ -34,15 +34,9 @@ resource blob 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
   name: 'default'
 }
 
-resource incoming 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+resource images 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
   parent: blob
-  name: incomingContainer
-  properties: { publicAccess: 'None' }
-}
-
-resource proofs 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
-  parent: blob
-  name: proofsContainer
+  name: blobContainer
   properties: { publicAccess: 'None' }
 }
 

@@ -26,7 +26,7 @@ az bicep build-params --file bicep/env/dev.bicepparam --stdout > /dev/null
 |---|---|---|
 | `APP_ENV` | Tên môi trường | param `environment` |
 | `STORAGE_ACCOUNT_NAME` | Tên storage (dùng managed identity) | output module storage |
-| `QUEUE_NAME`, `BLOB_CONTAINER_INCOMING/PROOFS`, `TABLE_USERS/RUNS/AUDIT` | Tên queue/container/table | param + giá trị mặc định |
+| `QUEUE_NAME`, `BLOB_CONTAINER`, `TABLE_USERS/RUNS/AUDIT` | Tên queue, container, table. Chỉ có **1 container** `proofs`: ảnh mới nằm ở thư mục `incoming/`, ảnh đã xử lý nằm ở `processed/` | param + giá trị mặc định |
 | `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` | **Secret** | biến môi trường của pipeline (variable group `krtrun-dev`) |
 
 ---

@@ -44,8 +44,7 @@ param appSubnetPrefix string
 param peSubnetPrefix string
 
 param queueName string = 'upload-jobs'
-param incomingContainer string = 'incoming'
-param proofsContainer string = 'proofs'
+param blobContainer string = 'proofs'
 
 var base = '${prefix}-${resourceEnv}'
 var tags = {
@@ -77,8 +76,7 @@ module storage 'modules/storage.bicep' = {
     location: location
     tags: tags
     queueName: queueName
-    incomingContainer: incomingContainer
-    proofsContainer: proofsContainer
+    blobContainer: blobContainer
     privateOnly: vnetIntegrationSupported
   }
 }
@@ -97,8 +95,7 @@ module storagePe 'modules/storage-private-endpoints.bicep' = if (vnetIntegration
 var sharedSettings = {
   APP_ENV: environment
   QUEUE_NAME: queueName
-  BLOB_CONTAINER_INCOMING: incomingContainer
-  BLOB_CONTAINER_PROOFS: proofsContainer
+  BLOB_CONTAINER: blobContainer
   TABLE_USERS: 'Users'
   TABLE_RUNS: 'Runs'
   TABLE_AUDIT: 'AuditLog'
