@@ -22,7 +22,7 @@ jobs:
   - task: AzureCLI@3
     displayName: Check resource group
     inputs:
-      azureSubscription: $(serviceConnection)
+      azureSubscription: ${{ variables.serviceConnection }}
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -39,7 +39,7 @@ jobs:
       type: deployment
       operation: whatIf
       scope: resourceGroup
-      azureResourceManagerConnection: $(serviceConnection)
+      azureResourceManagerConnection: ${{ variables.serviceConnection }}
       subscriptionId: $(subscriptionId)
       resourceGroupName: $(resourceGroup)
       templateFile: bicep/main.bicep

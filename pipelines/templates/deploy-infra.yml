@@ -34,7 +34,7 @@ stages:
           - task: AzureCLI@3
             displayName: Ensure resource group
             inputs:
-              azureSubscription: $(serviceConnection)
+              azureSubscription: ${{ variables.serviceConnection }}
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
@@ -48,7 +48,7 @@ stages:
               operation: create
               name: krtrun-$(environment)-$(Build.BuildId)
               scope: resourceGroup
-              azureResourceManagerConnection: $(serviceConnection)
+              azureResourceManagerConnection: ${{ variables.serviceConnection }}
               subscriptionId: $(subscriptionId)
               resourceGroupName: $(resourceGroup)
               templateFile: bicep/main.bicep
