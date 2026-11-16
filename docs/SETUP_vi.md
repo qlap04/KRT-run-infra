@@ -133,6 +133,8 @@ Khi `appServicePlanSku` là B1 trở lên, Bicep tự bật các thứ sau:
 - Storage bật firewall **Deny**, chỉ cho subnet này đi vào. Nếu không có route all thì traffic tới storage vẫn đi đường public.
 - Function dùng chung gói B1 nên có Always On, không tốn thêm tiền.
 
+Bảng IP của mỗi môi trường chỉ nằm trong `bicep/env/<env>.bicepparam` (`vnetAddressPrefix`, `appSubnetPrefix`, `reservedSubnetPrefix`). Không hardcode IP trong module. Mỗi môi trường nên dùng một dải riêng (vd dev `10.20.0.0/16`, sau này prod `10.30.0.0/16`) để sau này peering VNet không bị trùng.
+
 ```mermaid
 flowchart LR
   U["Người dùng"] -->|HTTPS public| W

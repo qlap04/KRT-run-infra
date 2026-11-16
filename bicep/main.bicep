@@ -36,6 +36,13 @@ param adminCode string = ''
 @description('API key APIM uses to call /api/*')
 param apiKey string = ''
 
+@description('VNet address space (IP plan lives in env/<env>.bicepparam)')
+param vnetAddressPrefix string
+@description('Subnet for App Service VNet integration (web + function)')
+param appSubnetPrefix string
+@description('Reserved subnet for later use')
+param reservedSubnetPrefix string
+
 param queueName string = 'upload-jobs'
 param incomingContainer string = 'incoming'
 param proofsContainer string = 'proofs'
@@ -53,7 +60,14 @@ var vnetIntegrationSupported = !(appServicePlanSku == 'F1' || appServicePlanSku 
 
 module network 'modules/network.bicep' = {
   name: 'network'
-  params: { name: '${base}-vnet', location: location, tags: tags }
+  params: {
+    name: '${base}-vnet'
+    location: location
+    tags: tags
+    addressPrefix: vnetAddressPrefix
+    appSubnetPrefix: appSubnetPrefix
+    reservedSubnetPrefix: reservedSubnetPrefix
+  }
 }
 
 module storage 'modules/storage.bicep' = {
