@@ -23,9 +23,6 @@ param deployApim bool = true
 param publisherEmail string = 'admin@example.com'
 param publisherName string = 'KRT-run'
 
-@description('Enable Application Insights + Log Analytics (costs money)')
-param enableInsights bool = false
-
 @description('Run the SCM build (npm install) when deploying the web app')
 param webBuildOnDeploy bool = true
 
@@ -72,12 +69,7 @@ module storage 'modules/storage.bicep' = {
   }
 }
 
-module insights 'modules/insights.bicep' = if (enableInsights) {
-  name: 'insights'
-  params: { prefix: prefix, resourceEnv: resourceEnv, location: location, tags: tags }
-}
-
-var sharedSettings = union({
+var sharedSettings = {
   APP_ENV: environment
   QUEUE_NAME: queueName
   BLOB_CONTAINER_INCOMING: incomingContainer
@@ -85,7 +77,7 @@ var sharedSettings = union({
   TABLE_USERS: 'Users'
   TABLE_RUNS: 'Runs'
   TABLE_AUDIT: 'AuditLog'
-}, enableInsights ? { APPLICATIONINSIGHTS_CONNECTION_STRING: insights.?outputs.connectionString ?? '' } : {})
+}
 
 module web 'modules/web.bicep' = {
   name: 'web'

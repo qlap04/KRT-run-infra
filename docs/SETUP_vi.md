@@ -1,6 +1,6 @@
 # KRT-run (repo `infra`) – Hướng dẫn
 
-Repo này chứa **hạ tầng Azure** bằng **Bicep** và pipeline **provision** (Azure DevOps): VNet, App Service Plan + Web App (Node 22), Function App (chạy chung gói B1 với web), Storage (Blob/Queue/Table), APIM Consumption, App Insights (tuỳ chọn). Code ứng dụng và pipeline app-deploy nằm ở repo riêng `app`.
+Repo này chứa **hạ tầng Azure** bằng **Bicep** và pipeline **provision** (Azure DevOps): VNet, App Service Plan + Web App (Node 22), Function App (chạy chung gói B1 với web), Storage (Blob/Queue/Table), APIM Consumption. Code ứng dụng và pipeline app-deploy nằm ở repo riêng `app`.
 
 ```
 infra/
@@ -8,7 +8,7 @@ infra/
 ├── .cursor/rules/bicep.mdc
 ├── bicep/
 │   ├── main.bicep
-│   ├── modules/           # network, storage, web, function, roles, apim, insights
+│   ├── modules/           # network, storage, web, function, roles, apim
 │   └── env/               # dev.bicepparam (thêm <env>.bicepparam khi mở rộng)
 ├── pipelines/             # provision.yml, destroy.yml, templates/, variables/<env>.yml
 └── docs/SETUP_vi.md
@@ -101,7 +101,6 @@ Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-r
 | Storage (Blob + Queue + Table) | Standard LRS | vài nghìn đồng |
 | VNet + 2 subnet | – | 0đ |
 | APIM | Consumption (1 triệu call miễn phí) | ~0đ |
-| Application Insights | tắt mặc định (`enableInsights=false`) | 0đ |
 | **Tổng bộ dev** | | **< 200k** |
 
 Hiện chỉ dựng bộ **dev**, dùng gói **B1**. Giá B1 khoảng 0,019 USD/giờ, tức khoảng 0,15 USD (~4k đồng) cho 8 giờ. Một tháng 22 ngày làm việc khoảng 3,3 USD (~87k đồng). **Điều kiện: dùng xong là chạy pipeline destroy ngay.** Nếu để chạy 24/7 thì B1 tốn khoảng 13 USD/tháng (~330k), vượt 200k.
