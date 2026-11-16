@@ -1,0 +1,93 @@
+# KRT-run provision (repo: infra)
+#
+# Branch → stages
+#   develop   : Validate → DEV
+#   release/* : Validate → SIT → UAT
+#   main      : Validate → PREPROD → PROD
+#   hotfix/*  : Validate → <target> → PROD
+#
+# Approvals: Azure DevOps Environments krtrun-<env> (uat / preprod / prod).
+name: krtrun-provision-$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+    - develop
+    - release/*
+    - main
+    - hotfix/*
+  paths:
+    include:
+    - bicep/**
+    - pipelines/**
+    exclude:
+    - pipelines/destroy.yml
+pr: none
+
+parameters:
+- name: targetEnvironment
+  displayName: Hotfix only — env before PROD
+  type: string
+  default: dev
+  values: [dev, sit, uat, preprod]
+
+stages:
+- stage: Validate
+  displayName: Validate
+  variables:
+  - template: variables/common.yml
+  jobs:
+  - template: templates/validate-bicep.yml
+
+# --- develop → DEV
+- template: templates/deploy-infra.yml
+  parameters:
+    stageName: DeployDev
+    environment: dev
+    dependsOn: [Validate]
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+
+# --- release/* → SIT → UAT
+- template: templates/deploy-infra.yml
+  parameters:
+    stageName: DeploySit
+    environment: sit
+    dependsOn: [Validate]
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))
+
+- template: templates/deploy-infra.yml
+  parameters:
+    stageName: DeployUat
+    environment: uat
+    dependsOn: [Validate, DeploySit]
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))
+
+# --- main → PREPROD → PROD
+- template: templates/deploy-infra.yml
+  parameters:
+    stageName: DeployPreprod
+    environment: preprod
+    dependsOn: [Validate]
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+- template: templates/deploy-infra.yml
+  parameters:
+    stageName: DeployProd
+    environment: prod
+    dependsOn: [Validate, DeployPreprod]
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+# --- hotfix/* → target → PROD
+- template: templates/deploy-infra.yml
+  parameters:
+    stageName: DeployHotfixTarget
+    environment: ${{ parameters.targetEnvironment }}
+    dependsOn: [Validate]
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/hotfix/'))
+
+- template: templates/deploy-infra.yml
+  parameters:
+    stageName: DeployHotfixProd
+    environment: prod
+    dependsOn: [Validate, DeployHotfixTarget]
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/hotfix/'))

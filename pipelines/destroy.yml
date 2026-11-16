@@ -1,0 +1,62 @@
+# KRT-run DESTROY — manual only (trigger: none).
+# Safety: ADO Environment approval on krtrun-<env>.
+# Order: delete + purge APIM, then delete resource group.
+name: krtrun-destroy-$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger: none
+pr: none
+
+parameters:
+- name: environment
+  displayName: Env to destroy (dev shared by sit/uat/preprod)
+  type: string
+  default: dev
+  values: [dev, prod]
+
+stages:
+- stage: Destroy
+  displayName: Destroy ${{ upper(parameters.environment) }}
+  variables:
+  - template: variables/common.yml
+  - template: variables/${{ parameters.environment }}.yml
+  - group: krtrun-${{ parameters.environment }}
+  jobs:
+  - deployment: Destroy
+    displayName: Delete $(resourceGroup)
+    pool: { vmImage: $(vmImage) }
+    environment: krtrun-${{ parameters.environment }}
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureCLI@3
+            displayName: Delete & purge APIM
+            inputs:
+              azureSubscription: $(serviceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -u
+                APIM="$(prefix)-$(resourceEnv)-apim"
+                if [ "`az group exists --name $(resourceGroup)`" != "true" ]; then
+                  echo "RG $(resourceGroup) missing — nothing to delete."
+                  exit 0
+                fi
+                echo "##vso[task.setvariable variable=rgExists]true"
+                if az apim show --resource-group $(resourceGroup) --name "$APIM" --output none 2>/dev/null; then
+                  az apim delete --resource-group $(resourceGroup) --name "$APIM" --yes
+                  az apim deletedservice purge --service-name "$APIM" --location $(location) \
+                    || echo "Purge skipped (already gone)."
+                else
+                  echo "No APIM $APIM."
+                fi
+
+          - task: AzureResourceManagerTemplateDeployment@3
+            displayName: Delete RG $(resourceGroup)
+            condition: eq(variables['rgExists'], 'true')
+            inputs:
+              deploymentScope: Resource Group
+              action: DeleteRG
+              azureResourceManagerConnection: $(serviceConnection)
+              subscriptionId: $(subscriptionId)
+              resourceGroupName: $(resourceGroup)

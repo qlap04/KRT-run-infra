@@ -1,0 +1,97 @@
+# What-if then deploy infra for one environment.
+parameters:
+- name: stageName
+  type: string
+- name: environment
+  type: string
+- name: dependsOn
+  type: object
+  default: []
+- name: condition
+  type: string
+  default: succeeded()
+
+stages:
+- stage: ${{ parameters.stageName }}
+  displayName: Provision ${{ upper(parameters.environment) }}
+  dependsOn: ${{ parameters.dependsOn }}
+  condition: ${{ parameters.condition }}
+  variables:
+  - template: ../variables/common.yml
+  - template: ../variables/${{ parameters.environment }}.yml
+  - group: krtrun-${{ parameters.environment }}
+  jobs:
+
+  - job: WhatIf
+    displayName: What-if
+    pool: { vmImage: $(vmImage) }
+    steps:
+    - checkout: self
+
+    - task: AzureCLI@3
+      displayName: Check resource group
+      inputs:
+        azureSubscription: $(serviceConnection)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          if [ "`az group exists --name $(resourceGroup)`" = "true" ]; then
+            echo "##vso[task.setvariable variable=rgExists]true"
+          else
+            echo "RG $(resourceGroup) missing — skip what-if (created on Deploy)."
+          fi
+
+    - task: BicepDeploy@0
+      displayName: Bicep what-if
+      condition: eq(variables['rgExists'], 'true')
+      inputs:
+        type: deployment
+        operation: whatIf
+        scope: resourceGroup
+        azureResourceManagerConnection: $(serviceConnection)
+        subscriptionId: $(subscriptionId)
+        resourceGroupName: $(resourceGroup)
+        templateFile: bicep/main.bicep
+        parametersFile: bicep/env/${{ parameters.environment }}.bicepparam
+      env:
+        SESSION_SECRET: $(SESSION_SECRET)
+        ADMIN_CODE: $(ADMIN_CODE)
+        API_KEY: $(API_KEY)
+
+  - deployment: Deploy
+    displayName: Deploy infra
+    dependsOn: WhatIf
+    pool: { vmImage: $(vmImage) }
+    environment: krtrun-${{ parameters.environment }}
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+
+          - task: AzureCLI@3
+            displayName: Ensure resource group
+            inputs:
+              azureSubscription: $(serviceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az group create --name $(resourceGroup) --location $(location) \
+                  --tags project=$(projectName) env=$(environment) --output none
+
+          - task: BicepDeploy@0
+            displayName: Bicep deploy
+            inputs:
+              type: deployment
+              operation: create
+              name: krtrun-$(environment)-$(Build.BuildId)
+              scope: resourceGroup
+              azureResourceManagerConnection: $(serviceConnection)
+              subscriptionId: $(subscriptionId)
+              resourceGroupName: $(resourceGroup)
+              templateFile: bicep/main.bicep
+              parametersFile: bicep/env/${{ parameters.environment }}.bicepparam
+            env:
+              SESSION_SECRET: $(SESSION_SECRET)
+              ADMIN_CODE: $(ADMIN_CODE)
+              API_KEY: $(API_KEY)

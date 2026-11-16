@@ -1,0 +1,17 @@
+# Validate Bicep (no Azure connection).
+jobs:
+- job: Validate
+  displayName: Validate Bicep
+  pool: { vmImage: $(vmImage) }
+  steps:
+  - checkout: self
+
+  - script: |
+      set -e
+      az bicep install
+      az bicep build --file bicep/main.bicep --stdout > /dev/null
+      for env in dev sit uat preprod prod; do
+        echo "== build-params $env"
+        az bicep build-params --file bicep/env/$env.bicepparam --stdout > /dev/null
+      done
+    displayName: Build main + all params

@@ -1,0 +1,9 @@
+.DS_Store
+# bicep build output (compiled ARM)
+main.json
+*.json
+!.vscode/*.json
+.azure/
+*.local.bicepparam
+.env
+.env.*

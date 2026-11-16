@@ -1,0 +1,11 @@
+# Environment: uat  (uat: shares the dev resources (same RG/app/storage as dev), only APP_ENV=uat differs)
+# Resource names here must match bicep/env/uat.bicepparam.
+variables:
+  environment: uat              # -> APP_ENV
+  resourceEnv: dev             # resource name set: dev | prod
+  prefix: krtrun
+  serviceConnection: sc-krtrun-dev   # Azure Resource Manager service connection (workload identity federation)
+  resourceGroup: rg-krtrun-dev
+  location: australiaeast
+  # subscriptionId (plain) and secrets (SESSION_SECRET, ADMIN_CODE, API_KEY) live in the Azure DevOps variable group krtrun-uat,
+  # NOT in the repo. The group is loaded in templates/*.yml.
