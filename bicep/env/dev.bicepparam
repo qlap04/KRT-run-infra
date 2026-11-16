@@ -7,7 +7,7 @@ param resourceEnv = 'dev'
 param location = 'australiaeast'
 param appServicePlanSku = 'B1'
 param deployApim = true
-param publisherEmail = 'admin@example.com' // change to a real email
+param publisherEmail = 'quoclap030904@gmail.com' // change to a real email
 param publisherName = 'KRT-run'
 
 // Secrets: read from the pipeline's environment variables (variable group krtrun-dev). NEVER put the values in this file.
