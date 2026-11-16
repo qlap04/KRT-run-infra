@@ -1,12 +1,19 @@
 param planName string
+
 param webAppName string
+
 param location string
+
 param tags object
-@description('App Service plan SKU (B1 or higher, needed for VNet integration)')
+
+@description('App Service plan SKU (B1 or higher)')
 param skuName string = 'B1'
+
 @description('Subnet id for VNet integration; all outbound traffic is routed through the VNet')
 param integrationSubnetId string
+
 param storageAccountName string
+
 param appSettings object = {}
 
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {

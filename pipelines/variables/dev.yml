@@ -1,11 +1,10 @@
 # Environment: dev  (only active environment)
 # Resource names here must match bicep/env/dev.bicepparam.
 variables:
-  environment: dev              # -> APP_ENV
-  resourceEnv: dev             # resource name set: dev | prod
+  environment: dev
+  resourceEnv: dev
   prefix: krtrun
   serviceConnection: sc-krtrun-dev   # Azure Resource Manager service connection (workload identity federation)
   resourceGroup: rg-krtrun-dev
   location: australiaeast
-  # subscriptionId (plain) and secrets (SESSION_SECRET, ADMIN_CODE, API_KEY) live in the Azure DevOps variable group krtrun-dev,
-  # NOT in the repo. The group is loaded in templates/*.yml.
+

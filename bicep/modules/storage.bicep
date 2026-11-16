@@ -1,10 +1,15 @@
 @description('Storage account name (3-24 lowercase letters and digits)')
 param name string
+
 param location string
+
 param tags object
+
 @description('Single blob container for proof images: uploads under incoming/, processed under processed/')
 param blobContainer string = 'proofs'
+
 param queueName string = 'upload-jobs'
+
 param tableNames array = [ 'Users', 'Runs', 'AuditLog' ]
 
 resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' = {

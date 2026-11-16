@@ -9,7 +9,7 @@ param prefix string = 'krtrun'
 @allowed([ 'dev', 'sit', 'uat', 'preprod', 'prod' ])
 param environment string = 'dev'
 
-@description('Resource name set used in resource names (prefix-resourceEnv-*). Only "dev" is in use now; "prod" is reserved for a later environment')
+@description('Resource name set used in resource names (prefix-resourceEnv-*)')
 @allowed([ 'dev', 'prod' ])
 param resourceEnv string = 'dev'
 
@@ -21,28 +21,34 @@ param appServicePlanSku string = 'B1'
 
 @description('Create an APIM Consumption instance')
 param deployApim bool = true
-param publisherEmail string = 'admin@example.com'
-param publisherName string = 'KRT-run'
 
+param publisherEmail string = 'admin@example.com'
+
+param publisherName string = 'KRT-run'
 
 @secure()
 @description('Session signing key (read from an environment variable in .bicepparam)')
 param sessionSecret string = ''
+
 @secure()
 @description('Employee code that becomes admin on registration')
 param adminCode string = ''
+
 @secure()
 @description('API key APIM uses to call /api/*')
 param apiKey string = ''
 
-@description('VNet address space (IP plan lives in env/<env>.bicepparam)')
+@description('VNet address space ')
 param vnetAddressPrefix string
+
 @description('Subnet for App Service VNet integration (web + function)')
 param appSubnetPrefix string
+
 @description('Subnet for the storage private endpoints')
 param peSubnetPrefix string
 
 param queueName string = 'upload-jobs'
+
 param blobContainer string = 'proofs'
 
 var base = '${prefix}-${resourceEnv}'

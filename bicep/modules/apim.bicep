@@ -1,7 +1,11 @@
 param name string
+
 param location string
+
 param tags object
+
 param publisherEmail string
+
 param publisherName string
 
 // Consumption: cheapest (1 million free calls/month) but it CANNOT join a VNet.

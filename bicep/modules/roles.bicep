@@ -1,6 +1,8 @@
 param storageAccountName string
+
 @description('Site name (used to build a stable role assignment name)')
 param siteName string
+
 param principalId string
 
 var roleIds = [

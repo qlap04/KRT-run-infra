@@ -1,19 +1,23 @@
 param functionAppName string
+
 param location string
+
 param tags object
+
 param storageAccountName string
+
 param appSettings object = {}
-@description('App Service plan id the function shares with the web app (B1+)')
+
+@description('Existing App Service plan id')
 param planId string
-@description('Subnet id for VNet integration; all outbound traffic is routed through the VNet')
+
+@description('Subnet id for VNet integration')
 param integrationSubnetId string
 
 resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
 }
 
-// Host storage (AzureWebJobsStorage) uses a key so the role set stays Blob/Queue/Table Data Contributor only.
-// The key only lives in the app setting and is NEVER output. The traffic reaches storage through the private endpoints (route all + private DNS).
 // A Linux App Service plan needs no WEBSITE_CONTENTAZUREFILECONNECTIONSTRING / WEBSITE_CONTENTSHARE.
 var hostConnection = 'DefaultEndpointsProtocol=https;AccountName=${sa.name};AccountKey=${sa.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
 

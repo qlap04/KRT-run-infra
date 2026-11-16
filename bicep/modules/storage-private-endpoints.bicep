@@ -1,8 +1,12 @@
 param location string
+
 param tags object
+
 param storageAccountName string
-@description('VNet id the private DNS zones are linked to (all its subnets share the link)')
+
+@description('VNet id the private DNS zones are linked to')
 param vnetId string
+
 @description('Subnet id that hosts the private endpoints (snet-pe)')
 param peSubnetId string
 
@@ -44,7 +48,6 @@ resource links 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01
   tags: tags
   properties: {
     virtualNetwork: { id: vnetId }
-    registrationEnabled: false
   }
 }]
 

@@ -1,12 +1,17 @@
 @description('VNet name')
 param name string
+
 param location string
+
 param tags object
-@description('VNet address space, e.g. 10.20.0.0/16')
+
+@description('VNet address space')
 param addressPrefix string
-@description('App integration subnet (web + function), e.g. 10.20.1.0/24')
+
+@description('App integration subnet (web + function)')
 param appSubnetPrefix string
-@description('Private endpoints subnet, e.g. 10.20.2.0/24')
+
+@description('Private endpoints subnet')
 param peSubnetPrefix string
 
 resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
