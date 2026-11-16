@@ -2,15 +2,13 @@ param planName string
 param webAppName string
 param location string
 param tags object
-@description('F1 (free), B1... Default F1')
-param skuName string = 'F1'
-@description('Subnet id for VNet integration (empty = off; F1 does not support it). When set, all outbound traffic is routed through the VNet')
-param integrationSubnetId string = ''
+@description('App Service plan SKU (B1 or higher, needed for VNet integration)')
+param skuName string = 'B1'
+@description('Subnet id for VNet integration; all outbound traffic is routed through the VNet')
+param integrationSubnetId string
 param storageAccountName string
 param appSettings object = {}
 param buildOnDeploy bool = true
-
-var isFree = skuName == 'F1' || skuName == 'D1'
 
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: planName
@@ -35,12 +33,12 @@ resource web 'Microsoft.Web/sites@2025-03-01' = {
   properties: {
     serverFarmId: plan.id
     httpsOnly: true
-    virtualNetworkSubnetId: empty(integrationSubnetId) ? null : integrationSubnetId
-    outboundVnetRouting: empty(integrationSubnetId) ? null : { allTraffic: true }
+    virtualNetworkSubnetId: integrationSubnetId
+    outboundVnetRouting: { allTraffic: true }
     siteConfig: {
       linuxFxVersion: 'NODE|22-lts'
       appCommandLine: 'node server.js'
-      alwaysOn: !isFree
+      alwaysOn: true
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true

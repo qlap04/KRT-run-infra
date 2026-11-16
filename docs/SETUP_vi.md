@@ -107,7 +107,7 @@ Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-r
 
 Hiện chỉ dựng bộ **dev**, dùng gói **B1**. Giá B1 khoảng 0,019 USD/giờ, tức khoảng 0,15 USD (~4k đồng) cho 8 giờ. Một tháng 22 ngày làm việc khoảng 3,3 USD (~87k đồng). **Điều kiện: dùng xong là chạy pipeline destroy ngay.** Nếu để chạy 24/7 thì B1 tốn khoảng 13 USD/tháng (~330k), vượt 200k.
 
-Muốn về gói miễn phí thì đổi `appServicePlanSku = 'F1'` trong `bicep/env/dev.bicepparam`. F1 giới hạn khoảng 60 phút CPU/ngày, 1GB RAM, không có Always On, và **không có VNet**. Khi đó Bicep tự tắt VNet integration, tự bỏ private endpoint, để storage mở public và Function quay về gói Consumption Y1.
+Gói chỉ được chọn B1, B2 hoặc B3 (tham số `appServicePlanSku` trong `bicep/env/dev.bicepparam`). Gói miễn phí không hỗ trợ VNet và không chạy được Function App nên không còn dùng.
 
 ## 5. Dọn dẹp (tránh tốn tiền)
 
@@ -127,9 +127,9 @@ Lệnh này **xoá toàn bộ** tài nguyên trong group, hãy chắc chắn tr�
 
 **Chi phí theo ngày:** App Service B1 Linux ở `australiaeast` khoảng 0,019 USD/giờ, tức ~5k VND cho 10 giờ dùng. Mẹo: dựng lên, làm xong thì chạy destroy trong ngày. Quên destroy thì B1 vẫn tính tiền theo giờ.
 
-## 6. VNet integration (chạy khi dùng B1)
+## 6. VNet integration
 
-Khi `appServicePlanSku` là B1 trở lên, Bicep tự bật các thứ sau:
+Bicep luôn bật các thứ sau:
 - Web app và Function App cùng nằm trên **một gói B1**, cùng gắn vào subnet `snet-app-integration`, và bật **route all** (mọi traffic đi ra đều đi qua VNet).
 - Subnet `snet-pe` chứa **3 private endpoint** của storage (blob, queue, table). Mỗi endpoint là một "card mạng" có IP private (vd `10.20.2.4`) nối thẳng vào storage.
 - **3 Private DNS zone** `privatelink.blob/queue/table.core.windows.net`. Zone này làm cho tên `<storage>.blob.core.windows.net` phân giải ra IP private thay vì IP public. Thiếu zone thì app vẫn ra IP public và bị chặn.
@@ -170,8 +170,7 @@ Cần biết:
 - Chưa có giới hạn số lần đăng nhập sai (rate limit).
 - `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` hiện đặt thành *app setting*. Muốn an toàn hơn thì chuyển sang Key Vault reference.
 - Bicep và pipeline **chưa được chạy thật trên Azure** (chỉ build/validate cú pháp).
-- Linux Consumption (Y1) của Function (chỉ dùng khi chọn F1) có lộ trình ngừng hỗ trợ trong tương lai; xem docs Azure khi triển khai lâu dài.
-- Pipeline app-deploy deploy Function lên gói B1 (không phải Consumption). Cần kiểm tra lại task deploy function ở repo `app` lần chạy đầu.
+- Pipeline app-deploy deploy Function lên gói B1. Cần kiểm tra lại task deploy function ở repo `app` lần chạy đầu.
 
 ## 8. Từ khó
 
@@ -188,5 +187,5 @@ Cần biết:
 | Variable group | Nhóm biến (có thể là secret) dùng chung cho nhiều pipeline |
 | Stage / Job / Template | Giai đoạn / công việc / khuôn dùng lại trong pipeline |
 | APIM | API Management: cổng đứng trước API, quản lý key, giới hạn, chính sách |
-| SKU | Gói dịch vụ (F1 miễn phí, B1 trả phí...) |
+| SKU | Gói dịch vụ (vd B1, B2, B3) |
 | Append-only | Chỉ được thêm bản ghi mới, không sửa/xoá |

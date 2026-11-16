@@ -6,8 +6,6 @@ param tags object
 param blobContainer string = 'proofs'
 param queueName string = 'upload-jobs'
 param tableNames array = [ 'Users', 'Runs', 'AuditLog' ]
-@description('true = no public access, reachable only through private endpoints (see storage-private-endpoints.bicep)')
-param privateOnly bool = false
 
 resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: name
@@ -20,10 +18,11 @@ resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     allowBlobPublicAccess: false
     supportsHttpsTrafficOnly: true
     accessTier: 'Hot'
+    // Private only: reachable through the private endpoints (storage-private-endpoints.bicep).
     // Data plane only; ARM (containers, queues, tables, role assignments) is not affected
-    publicNetworkAccess: privateOnly ? 'Disabled' : 'Enabled'
+    publicNetworkAccess: 'Disabled'
     networkAcls: {
-      defaultAction: privateOnly ? 'Deny' : 'Allow'
+      defaultAction: 'Deny'
       bypass: 'AzureServices'
     }
   }

@@ -15,8 +15,9 @@ param resourceEnv string = 'dev'
 
 param location string = 'australiaeast'
 
-@description('App Service Plan SKU: F1 (free) | B1 | ... F1 has no VNet integration; B1+ enables VNet integration and private-only storage')
-param appServicePlanSku string = 'F1'
+@description('App Service Plan SKU (B1 or higher; the free tier has no VNet integration)')
+@allowed([ 'B1', 'B2', 'B3' ])
+param appServicePlanSku string = 'B1'
 
 @description('Create an APIM Consumption instance')
 param deployApim bool = true
@@ -55,7 +56,6 @@ var tags = {
 var storageName = take(toLower(replace('st${prefix}${resourceEnv}${uniqueString(resourceGroup().id)}', '-', '')), 24)
 var webAppName = '${base}-web'
 var functionAppName = '${base}-func'
-var vnetIntegrationSupported = !(appServicePlanSku == 'F1' || appServicePlanSku == 'D1')
 
 module network 'modules/network.bicep' = {
   name: 'network'
@@ -77,11 +77,10 @@ module storage 'modules/storage.bicep' = {
     tags: tags
     queueName: queueName
     blobContainer: blobContainer
-    privateOnly: vnetIntegrationSupported
   }
 }
 
-module storagePe 'modules/storage-private-endpoints.bicep' = if (vnetIntegrationSupported) {
+module storagePe 'modules/storage-private-endpoints.bicep' = {
   name: 'storage-pe'
   params: {
     location: location
@@ -111,7 +110,7 @@ module web 'modules/web.bicep' = {
     location: location
     tags: tags
     skuName: appServicePlanSku
-    integrationSubnetId: vnetIntegrationSupported ? network.outputs.appIntegrationSubnetId : ''
+    integrationSubnetId: network.outputs.appIntegrationSubnetId
     storageAccountName: storage.outputs.name
     buildOnDeploy: webBuildOnDeploy
     appSettings: union(sharedSettings, {
@@ -126,13 +125,12 @@ module func 'modules/function.bicep' = {
   name: 'function'
   dependsOn: [ storagePe ]
   params: {
-    planName: '${base}-funcplan'
     functionAppName: functionAppName
     location: location
     tags: tags
-    // B1+: the function shares the web plan and joins the VNet; F1: it keeps its own Consumption (Y1) plan
-    planId: vnetIntegrationSupported ? web.outputs.planId : ''
-    integrationSubnetId: vnetIntegrationSupported ? network.outputs.appIntegrationSubnetId : ''
+    // The function shares the web plan and joins the same VNet subnet
+    planId: web.outputs.planId
+    integrationSubnetId: network.outputs.appIntegrationSubnetId
     storageAccountName: storage.outputs.name
     appSettings: sharedSettings
   }
