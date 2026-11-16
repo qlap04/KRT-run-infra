@@ -9,7 +9,7 @@ param prefix string = 'krtrun'
 @allowed([ 'dev', 'sit', 'uat', 'preprod', 'prod' ])
 param environment string = 'dev'
 
-@description('Resource name set. dev/sit/uat/preprod share the "dev" set; only prod uses the "prod" set')
+@description('Resource name set used in resource names (prefix-resourceEnv-*). Only "dev" is in use now; "prod" is reserved for a later environment')
 @allowed([ 'dev', 'prod' ])
 param resourceEnv string = 'dev'
 

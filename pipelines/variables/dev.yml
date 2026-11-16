@@ -1,4 +1,4 @@
-# Environment: dev  (dev: base resource set, shared by sit/uat/preprod)
+# Environment: dev  (only active environment)
 # Resource names here must match bicep/env/dev.bicepparam.
 variables:
   environment: dev              # -> APP_ENV

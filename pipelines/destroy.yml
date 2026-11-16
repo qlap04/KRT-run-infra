@@ -1,30 +1,23 @@
 # KRT-run DESTROY — manual only (trigger: none).
-# Safety: ADO Environment approval on krtrun-<env>.
+# Safety: ADO Environment approval on krtrun-dev.
 # Order: delete + purge APIM, then delete resource group.
 name: krtrun-destroy-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger: none
 pr: none
 
-parameters:
-- name: environment
-  displayName: Env to destroy (dev shared by sit/uat/preprod)
-  type: string
-  default: dev
-  values: [dev, prod]
-
 stages:
 - stage: Destroy
-  displayName: Destroy ${{ upper(parameters.environment) }}
+  displayName: Destroy DEV
   variables:
   - template: variables/common.yml
-  - template: variables/${{ parameters.environment }}.yml
-  - group: krtrun-${{ parameters.environment }}
+  - template: variables/dev.yml
+  - group: krtrun-dev
   jobs:
   - deployment: Destroy
     displayName: Delete $(resourceGroup)
     pool: { vmImage: $(vmImage) }
-    environment: krtrun-${{ parameters.environment }}
+    environment: krtrun-dev
     strategy:
       runOnce:
         deploy:

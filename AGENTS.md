@@ -12,20 +12,18 @@ Resources: VNet, App Service Plan + Web App (Node 22), Function App (Consumption
 - NEVER run `az deployment`, `az login`, `terraform apply` or deploy without Kai's explicit OK. Only validate: `az bicep build` / `build-params`.
 - No hardcoded secrets; never output secrets from Bicep. Read them with `readEnvironmentVariable()`; the values live in the Azure DevOps variable group `krtrun-<env>`.
 - Cheapest SKUs by default (budget < 200k VND/month): F1, Y1, APIM Consumption.
-- `sit`/`uat`/`preprod` SHARE the `dev` resources (`resourceEnv=dev`) and differ only in `APP_ENV`; only `prod` has its own resources.
-- Each environment has its own files `bicep/env/<env>.bicepparam` and `pipelines/variables/<env>.yml`; they must stay in sync.
+- Only `dev` is active. Each environment has its own files `bicep/env/<env>.bicepparam` and `pipelines/variables/<env>.yml`; they must stay in sync.
 - If you rename a resource here, update `pipelines/variables/<env>.yml` in the `app` repo too.
-- `destroy.yml` is manual only; its safety is the approval gate of environment `krtrun-<env>`.
+- `destroy.yml` is manual only and hardcoded to `dev`; its safety is the approval gate of environment `krtrun-dev`.
 - Small, incremental changes. Everything in the system is English (comments, descriptions, displayNames). Only `docs/SETUP_vi.md` is Vietnamese.
 
 ## Environments & Git flow
+Only `dev` is active for now (ADO Environment `krtrun-dev`, with approval). `main.bicep` still allows the environment names `sit`, `uat`, `preprod`, and `prod` so a later environment can be added without changing the parameter contract.
+
 | Branch | `provision` pipeline runs |
 |---|---|
 | `develop` | Validate → DEV |
-| `release/*` | Validate → SIT → UAT |
-| `main` | Validate → PREPROD → PROD |
-| `hotfix/*` | Validate → `targetEnvironment` (chosen manually) → PROD |
 
-Each deploy stage is a what-if followed by a Deploy through the ADO Environment `krtrun-<env>` (approvals are configured in the UI).
-- Feature branches start from `develop`; release branches are cut from `develop`; hotfix branches from `main`; when done merge into `main` and `develop`.
-- Never push directly to `main` or `develop`.
+Each deploy stage is a what-if followed by a Deploy through the ADO Environment `krtrun-dev` (approvals are configured in the UI).
+- Feature branches start from `develop` (`feature/<name>`) and merge back through a PR.
+- To add an environment later: add `pipelines/variables/<env>.yml`, `bicep/env/<env>.bicepparam`, a stage, plus an Azure DevOps Environment and variable group.

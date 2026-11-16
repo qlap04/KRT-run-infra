@@ -3,7 +3,7 @@
 Azure infrastructure for KRT-run with Bicep, plus the provisioning and destroy pipelines (Azure DevOps).
 
 ```
-bicep/       main.bicep, modules/, env/<env>.bicepparam (dev, sit, uat, preprod, prod)
+bicep/       main.bicep, modules/, env/<env>.bicepparam (dev only for now; add <env>.bicepparam to extend)
 pipelines/   provision.yml, destroy.yml, templates/, variables/<env>.yml
 docs/        SETUP_vi.md (Vietnamese setup guide)
 ```

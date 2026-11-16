@@ -9,15 +9,15 @@ infra/
 ├── bicep/
 │   ├── main.bicep
 │   ├── modules/           # network, storage, web, function, roles, apim, insights
-│   └── env/               # dev|sit|uat|preprod|prod.bicepparam
-├── pipelines/             # provision.yml, templates/, variables/<env>.yml
+│   └── env/               # dev.bicepparam (thêm <env>.bicepparam khi mở rộng)
+├── pipelines/             # provision.yml, destroy.yml, templates/, variables/<env>.yml
 └── docs/SETUP_vi.md
 ```
 
 Kiểm tra cú pháp (không deploy):
 ```bash
 az bicep build --file bicep/main.bicep --stdout > /dev/null
-for e in dev sit uat preprod prod; do az bicep build-params --file bicep/env/$e.bicepparam --stdout > /dev/null; done
+az bicep build-params --file bicep/env/dev.bicepparam --stdout > /dev/null
 ```
 
 ### Biến môi trường mà Bicep ghi vào app settings
@@ -27,7 +27,7 @@ for e in dev sit uat preprod prod; do az bicep build-params --file bicep/env/$e.
 | `APP_ENV` | Tên môi trường | param `environment` |
 | `STORAGE_ACCOUNT_NAME` | Tên storage (dùng managed identity) | output module storage |
 | `QUEUE_NAME`, `BLOB_CONTAINER_INCOMING/PROOFS`, `TABLE_USERS/RUNS/AUDIT` | Tên queue/container/table | param + giá trị mặc định |
-| `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` | **Secret** | biến môi trường của pipeline (variable group `krtrun-<env>`) |
+| `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` | **Secret** | biến môi trường của pipeline (variable group `krtrun-dev`) |
 
 ---
 
@@ -35,24 +35,22 @@ for e in dev sit uat preprod prod; do az bicep build-params --file bicep/env/$e.
 
 ```mermaid
 flowchart LR
-  A["Nhánh Git<br/>(develop / release / main / hotfix)<br/>+ parameter targetEnvironment"] --> B["Stage template<br/>environment = dev|sit|uat|preprod|prod"]
-  B --> C["pipelines/variables/&lt;env&gt;.yml<br/>(+ common.yml)<br/>RG, location, sku, tên app"]
-  B --> G["Variable group krtrun-&lt;env&gt;<br/>subscriptionId, SESSION_SECRET, ADMIN_CODE, API_KEY"]
-  C --> D["Task BicepDeploy@0<br/>parametersFile: bicep/env/&lt;env&gt;.bicepparam"]
+  A["Nhánh Git develop"] --> B["Stage DeployDev<br/>environment = dev"]
+  B --> C["pipelines/variables/dev.yml<br/>(+ common.yml)<br/>RG, location, sku, tên app"]
+  B --> G["Variable group krtrun-dev<br/>subscriptionId, SESSION_SECRET, ADMIN_CODE, API_KEY"]
+  C --> D["Task BicepDeploy@0<br/>parametersFile: bicep/env/dev.bicepparam"]
   G -->|"biến môi trường của task<br/>readEnvironmentVariable()"| D
   D --> E["Bicep: app settings<br/>APP_ENV, STORAGE_ACCOUNT_NAME, ..."]
   E --> F["Web App / Function App<br/>process.env.APP_ENV ..."]
 ```
 
 Giải thích dễ hiểu (giống việc **gọi món ăn**):
-1. **Nhánh Git** là "bàn nào gọi món". Pipeline nhìn tên nhánh để biết phải chạy môi trường nào (hotfix thì bạn chọn tay bằng `targetEnvironment`).
-2. Mỗi stage mang tên môi trường, rồi **tự nạp file `pipelines/variables/<env>.yml`** của đúng môi trường đó (tên resource group, region, SKU, tên web app...). Phần dùng chung nằm ở `common.yml`.
-3. **Secret không nằm trong repo.** Chúng nằm trong *variable group* `krtrun-<env>` trên Azure DevOps. Task chuyển chúng thành biến môi trường, file `.bicepparam` đọc bằng `readEnvironmentVariable('SESSION_SECRET', '')`.
-4. Pipeline dùng task có sẵn `BicepDeploy@0` (what-if rồi deploy) với file `bicep/env/<env>.bicepparam`; mọi giá trị tham số nằm trong file này. File `pipelines/variables/<env>.yml` chỉ giữ tên resource group, region, tên web app... để pipeline dùng, nên phải khớp với bicepparam.
+1. **Nhánh Git** là "bàn nào gọi món". Hiện chỉ có nhánh `develop`, pipeline chạy Validate rồi deploy **DEV**.
+2. Stage DeployDev **tự nạp file `pipelines/variables/dev.yml`** (tên resource group, region, SKU, tên web app...) và phần dùng chung ở `common.yml`.
+3. **Secret không nằm trong repo.** Chúng nằm trong *variable group* `krtrun-dev` trên Azure DevOps. Task chuyển chúng thành biến môi trường, file `.bicepparam` đọc bằng `readEnvironmentVariable('SESSION_SECRET', '')`.
+4. Pipeline dùng task có sẵn `BicepDeploy@0` (what-if rồi deploy) với file `bicep/env/dev.bicepparam`; mọi giá trị tham số nằm trong file này. File `pipelines/variables/dev.yml` chỉ giữ tên resource group, region, tên web app... để pipeline dùng, nên phải khớp với bicepparam.
 5. Bicep ghi các giá trị đó vào **app settings** của Web App và Function App.
 6. Khi chạy, Azure đưa app settings vào **`process.env`**, và `config.js` đọc ra.
-
-> **Lưu ý quan trọng:** `sit`, `uat`, `preprod` dùng **chung tài nguyên của dev** (cùng RG, web app, storage). Mỗi lần provision môi trường nào thì `APP_ENV` của web app dev bị đổi thành tên môi trường đó (bản provision cuối cùng thắng). Đây là cách tiết kiệm tiền khi đang học. Khi cần tách thật, đổi `resourceEnv` và tên trong `pipelines/variables/<env>.yml` + `bicep/env/<env>.bicepparam`.
 
 ---
 
@@ -63,48 +61,32 @@ flowchart TD
   subgraph develop
     D1[Validate] --> D2[DEV]
   end
-  subgraph "release/*"
-    R1[Validate] --> R2[SIT] --> R3[UAT]
-  end
-  subgraph main
-    M1[Validate] --> M2[PREPROD] --> M3[PROD]
-  end
-  subgraph "hotfix/*"
-    H1[Validate] --> H2["môi trường chọn tay<br/>(targetEnvironment)"] --> H3[PROD]
-  end
 ```
 
 | Nhánh | Các stage chạy (tuần tự) | Approval |
 |---|---|---|
-| `develop` | Validate → **DEV** | không |
-| `release/*` | Validate → **SIT** → **UAT** | UAT |
-| `main` | Validate → **PREPROD** → **PROD** | PREPROD, PROD |
-| `hotfix/*` | Validate → **targetEnvironment** (dev/sit/uat/preprod, mặc định dev) → **PROD** | môi trường uat/preprod nếu chọn, và PROD |
+| `develop` | Validate → **DEV** | Environment `krtrun-dev` |
 
-Pipeline `pipelines/provision.yml` của repo này theo quy tắc trên (pipeline app-deploy ở repo `app` có quy tắc giống hệt). Stage đầu là **Validate** (bicep build + build-params, không cần kết nối Azure). Stage deploy là *template* dùng lại: `pipelines/templates/deploy-infra.yml` (what-if + deploy) và `pipelines/templates/validate-bicep.yml`.
-Approval **không** nằm trong YAML: bạn vào Azure DevOps → Pipelines → Environments → `krtrun-<env>` → Approvals and checks.
+Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.yml` của repo này theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Stage đầu là **Validate** (bicep build + build-params, không cần kết nối Azure). Stage deploy là *template* dùng lại: `pipelines/templates/deploy-infra.yml` (what-if + deploy) và `pipelines/templates/validate-bicep.yml`.
+Approval **không** nằm trong YAML: bạn vào Azure DevOps → Pipelines → Environments → `krtrun-dev` → Approvals and checks, rồi bật Approvals.
+
+Nhánh tính năng (`feature/<tên>`) cắt từ `develop` và merge lại bằng pull request.
+
+> **Sau này muốn thêm môi trường:** thêm file `pipelines/variables/<env>.yml` và `bicep/env/<env>.bicepparam`, thêm một stage trong pipeline, rồi tạo Environment và variable group tương ứng trên Azure DevOps.
 
 ---
 
 ## 3. Thiết lập Azure DevOps cho repo infra (làm một lần)
 
-1. **Tạo repo `infra` trên Azure DevOps** rồi đẩy code:
-   ```bash
-   cd infra
-   git remote add origin <URL repo infra>
-   git add . && git commit -m "init KRT-run infra"
-   git branch -M main && git push -u origin main
-   git checkout -b develop && git push -u origin develop
-   ```
-   (Repo này đã `git init -b develop`, chưa có commit.)
-2. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): `sc-krtrun-dev`, dùng chung cho mọi môi trường. Tên phải khớp `serviceConnection` trong `pipelines/variables/<env>.yml`. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và pipeline tạo resource group.
-3. **Environments**: `krtrun-dev`, `krtrun-sit`, `krtrun-uat`, `krtrun-preprod`, `krtrun-prod`; thêm **Approvals** cho `uat`, `preprod`, `prod`.
-4. **Variable groups** (Pipelines → Library): `krtrun-dev`, `krtrun-sit`, `krtrun-uat`, `krtrun-preprod`, `krtrun-prod`; mỗi group có 1 biến thường `subscriptionId` (Subscription ID của Azure, dạng GUID) và 3 biến secret (bấm biểu tượng khoá):
+Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-run-infra](https://github.com/qlap04/KRT-run-infra). Không cần tạo repo Azure Repos hay push lại.
+
+1. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): tạo `sc-krtrun-dev`. Tên phải khớp `serviceConnection` trong `pipelines/variables/dev.yml`. Có thể dùng chung với repo `app` nếu cùng project. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và pipeline tạo resource group.
+2. **Environments**: chỉ cần `krtrun-dev`; vào Approvals and checks rồi **bật Approvals** (pipeline provision và destroy đều chờ duyệt ở đây).
+3. **Variable groups** (Pipelines → Library): chỉ cần `krtrun-dev`. Group này có 1 biến thường `subscriptionId` (Subscription ID của Azure, dạng GUID) và 3 biến secret (bấm biểu tượng khoá):
    - `SESSION_SECRET` (ví dụ `openssl rand -hex 32`), `ADMIN_CODE` (mã nhân viên của bạn), `API_KEY` (chuỗi ngẫu nhiên).
-5. **Tạo pipeline** `krtrun-provision` → `/pipelines/provision.yml`.
-6. **Đổi giá trị thật**: `publisherEmail` trong `bicep/env/*.bicepparam`; `prefix` nếu tên `krtrun-dev-web` bị trùng toàn cầu (đổi ở cả `pipelines/variables/*.yml` + `bicep/env/*.bicepparam` **và** `pipelines/variables/*.yml` của repo `app`).
-7. **Chạy**: merge vào `develop` → Validate → what-if → (approve) → deploy DEV. Sau đó mới chạy `app-deploy` ở repo `app`.
-8. **Hotfix**: nhánh `hotfix/xxx` từ `main`, **Run pipeline** chọn nhánh và `targetEnvironment`.
+4. **Tạo pipeline** (Pipelines → New pipeline → chọn **GitHub (YAML)** → chọn repo `qlap04/KRT-run-infra` → *Existing Azure Pipelines YAML file*): `krtrun-provision` → `/pipelines/provision.yml`. Lần đầu Azure DevOps sẽ xin quyền truy cập GitHub.
+5. **Đổi giá trị thật**: `publisherEmail` trong `bicep/env/dev.bicepparam`; `prefix` nếu tên `krtrun-dev-web` bị trùng toàn cầu (đổi ở cả `pipelines/variables/dev.yml` + `bicep/env/dev.bicepparam` **và** `pipelines/variables/dev.yml` của repo `app`).
+6. **Chạy**: đẩy hoặc merge vào `develop` → Validate → what-if → (approve trên `krtrun-dev`) → deploy DEV. Sau đó mới chạy `app-deploy` ở repo `app`.
 
 Đọc kết quả what-if trước khi bấm Approve.
 
@@ -114,27 +96,26 @@ Approval **không** nằm trong YAML: bạn vào Azure DevOps → Pipelines → 
 
 | Thành phần | SKU | Chi phí/tháng |
 |---|---|---|
-| App Service Plan (dev/sit/uat/preprod chung) | **F1** | 0đ |
+| App Service Plan (dev) | **F1** | 0đ |
 | Function App | Consumption Y1 (1 triệu lần chạy miễn phí) | ~0đ |
 | Storage (Blob + Queue + Table) | Standard LRS | vài nghìn đồng |
 | VNet + 2 subnet | – | 0đ |
 | APIM | Consumption (1 triệu call miễn phí) | ~0đ |
 | Application Insights | tắt mặc định (`enableInsights=false`) | 0đ |
 | **Tổng bộ dev** | | **< 200k** |
-| Prod: App Service Plan | **B1** (~13 USD) | ~330k |
 
-⚠️ Nếu bật thêm bộ **prod** với B1 thì tổng sẽ vượt 200k. Khi đang học hãy **không chạy stage PROD**, hoặc sửa `appServicePlanSku` của prod về `F1` trong `env/prod.bicepparam`.
+Hiện chỉ dựng bộ **dev** (F1). Nếu sau này thêm môi trường khác với SKU **B1** (~13 USD, khoảng 330k/tháng) thì sẽ vượt 200k.
 
 F1 + Node.js: giới hạn khoảng 60 phút CPU/ngày, 1GB RAM, không có Always On (app "ngủ" sau một lúc không dùng, request đầu tiên chậm). Đủ cho demo; nếu app bị dừng vì hết quota CPU thì nâng lên B1.
 
 ## 5. Dọn dẹp (tránh tốn tiền)
 
-**Cách 1 – pipeline `pipelines/destroy.yml`** (chỉ chạy tay, không tự trigger):
-1. Tạo pipeline `krtrun-destroy` trỏ `/pipelines/destroy.yml`, rồi **Run pipeline** và chọn `environment` (mặc định `dev`).
-2. Pipeline dừng ở approval của environment `krtrun-<env>`. **Bạn bấm Approve thì mới xoá**, không Approve thì không xoá gì (đây là chốt an toàn duy nhất).
+**Cách 1 – pipeline `pipelines/destroy.yml`** (chỉ chạy tay, không tự trigger; luôn xoá môi trường **dev**):
+1. Tạo pipeline `krtrun-destroy` giống bước tạo provision: **GitHub (YAML)** → repo `qlap04/KRT-run-infra` → `/pipelines/destroy.yml`, rồi **Run pipeline**.
+2. Pipeline dừng ở approval của environment `krtrun-dev`. **Bạn bấm Approve thì mới xoá**, không Approve thì không xoá gì (đây là chốt an toàn duy nhất).
 3. Khi chạy: xoá APIM trước, **purge** bản soft-delete để hôm sau tạo lại không bị trùng tên, rồi xoá resource group.
 
-⚠️ `dev` dùng chung cho sit/uat/preprod nên xoá `dev` là mất cả bộ.
+⚠️ Pipeline này xoá toàn bộ resource group `rg-krtrun-dev`. Hãy chắc chắn trước khi Approve.
 
 **Cách 2 – chạy tay bằng lệnh:**
 ```bash

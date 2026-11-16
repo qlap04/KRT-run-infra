@@ -1,7 +1,6 @@
 using '../main.bicep'
 
-// Environment: dev
-// dev: shares the dev resource set (resourceEnv=dev); only APP_ENV differs
+// Environment: dev (only active environment for now)
 param prefix = 'krtrun'
 param environment = 'dev'
 param resourceEnv = 'dev'
