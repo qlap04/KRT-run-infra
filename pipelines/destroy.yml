@@ -1,6 +1,6 @@
 # KRT-run DESTROY — manual only (trigger: none).
 # Safety: ADO Environment approval on krtrun-dev.
-# Order: delete + purge APIM, then delete resource group.
+# Order: delete + purge APIM, then delete the APIM and app resource groups.
 name: krtrun-destroy-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger: none
@@ -19,14 +19,14 @@ stages:
   - group: krtrun-dev
   jobs:
   - deployment: Destroy
-    displayName: Delete $(resourceGroup)
+    displayName: Delete $(apimResourceGroup) and $(resourceGroup)
     environment: krtrun-dev
     strategy:
       runOnce:
         deploy:
           steps:
           - task: AzureCLI@3
-            displayName: Delete & purge APIM
+            displayName: Delete & purge APIM, delete resource groups
             inputs:
               connectedServiceNameARM: sc-krtrun-dev
               scriptType: bash
@@ -34,25 +34,22 @@ stages:
               inlineScript: |
                 set -u
                 APIM="$(projectName)-$(environment)-apim"
-                if [ "`az group exists --name $(resourceGroup)`" != "true" ]; then
-                  echo "RG $(resourceGroup) missing — nothing to delete."
-                  exit 0
-                fi
-                echo "##vso[task.setvariable variable=rgExists]true"
-                if az apim show --resource-group $(resourceGroup) --name "$APIM" --output none 2>/dev/null; then
-                  az apim delete --resource-group $(resourceGroup) --name "$APIM" --yes
+
+                # 1. APIM: delete, then purge so the name can be reused next time.
+                if az apim show --resource-group $(apimResourceGroup) --name "$APIM" --output none 2>/dev/null; then
+                  az apim delete --resource-group $(apimResourceGroup) --name "$APIM" --yes
                   az apim deletedservice purge --service-name "$APIM" --location $(location) \
                     || echo "Purge skipped (already gone)."
                 else
                   echo "No APIM $APIM."
                 fi
 
-          - task: AzureResourceManagerTemplateDeployment@3
-            displayName: Delete RG $(resourceGroup)
-            condition: eq(variables['rgExists'], 'true')
-            inputs:
-              deploymentScope: Resource Group
-              action: DeleteRG
-              azureResourceManagerConnection: sc-krtrun-dev
-              subscriptionId: $(subscriptionId)
-              resourceGroupName: $(resourceGroup)
+                # 2. Resource groups (APIM RG first, then the app RG).
+                for RG in $(apimResourceGroup) $(resourceGroup); do
+                  if [ "`az group exists --name "$RG"`" = "true" ]; then
+                    echo "Deleting $RG ..."
+                    az group delete --name "$RG" --yes
+                  else
+                    echo "RG $RG missing, nothing to delete."
+                  fi
+                done

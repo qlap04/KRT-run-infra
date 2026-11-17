@@ -1,3 +1,5 @@
+// App stack: everything that lives in the app resource group.
+// Called by main.bicep with scope = the app RG. APIM lives in its own RG.
 targetScope = 'resourceGroup'
 
 @description('Resource name prefix (change it if the web/function app name is taken globally)')
@@ -18,13 +20,6 @@ param location string = 'australiaeast'
 @description('App Service Plan SKU (B1 or higher; the free tier has no VNet integration)')
 @allowed([ 'B1', 'B2', 'B3' ])
 param appServicePlanSku string = 'B1'
-
-@description('Create an APIM Consumption instance')
-param deployApim bool = true
-
-param publisherEmail string = 'admin@example.com'
-
-param publisherName string = 'KRT-run'
 
 @secure()
 @description('Session signing key (read from an environment variable in .bicepparam)')
@@ -149,19 +144,7 @@ module rolesFunc 'modules/roles.bicep' = {
   params: { storageAccountName: storage.outputs.name, siteName: functionAppName, principalId: func.outputs.principalId }
 }
 
-module apim 'modules/apim.bicep' = if (deployApim) {
-  name: 'apim'
-  params: {
-    name: '${base}-apim'
-    location: location
-    tags: tags
-    publisherEmail: publisherEmail
-    publisherName: publisherName
-  }
-}
-
 output webAppName string = web.outputs.name
 output webAppUrl string = 'https://${web.outputs.defaultHostName}'
 output functionAppName string = func.outputs.name
 output storageAccountName string = storage.outputs.name
-output apimName string = deployApim ? '${base}-apim' : ''

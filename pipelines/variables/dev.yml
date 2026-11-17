@@ -1,4 +1,6 @@
 # Environment: dev (only active environment)
 variables:
   environment: dev
+  # Created by bicep/main.bicep (subscription scope); names must match it.
   resourceGroup: rg-$(projectName)-$(environment)
+  apimResourceGroup: rg-$(projectName)-$(environment)-apim

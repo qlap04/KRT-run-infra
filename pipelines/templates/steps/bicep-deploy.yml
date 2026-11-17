@@ -7,8 +7,17 @@ parameters:
 - name: subscriptionId
   type: string
 
+# resourceGroup = deploy into one existing RG; subscription = the template
+# creates its own RGs (needs location, no resourceGroup).
+- name: scope
+  type: string
+  default: resourceGroup
+  values: [resourceGroup, subscription]
+
+# Required when scope is resourceGroup.
 - name: resourceGroup
   type: string
+  default: ''
 
 - name: templateFile
   type: string
@@ -27,11 +36,13 @@ parameters:
   type: string
   default: bicep-$(Build.BuildId)
 
-# Create the resource group first if it is missing (an empty RG is free).
+# scope resourceGroup only: create the RG first if it is missing (empty RG is free).
 - name: ensureResourceGroup
   type: boolean
   default: false
 
+# Required when scope is subscription (where the deployment record lives),
+# and when ensureResourceGroup is true.
 - name: location
   type: string
   default: ''
@@ -48,7 +59,7 @@ parameters:
   default: {}
 
 steps:
-- ${{ if eq(parameters.ensureResourceGroup, true) }}:
+- ${{ if and(eq(parameters.scope, 'resourceGroup'), eq(parameters.ensureResourceGroup, true)) }}:
   - task: AzureCLI@3
     displayName: Ensure resource group ${{ parameters.resourceGroup }}
     inputs:
@@ -67,10 +78,13 @@ steps:
     inputs:
       type: deployment
       operation: whatIf
-      scope: resourceGroup
+      scope: ${{ parameters.scope }}
       azureResourceManagerConnection: ${{ parameters.serviceConnection }}
       subscriptionId: ${{ parameters.subscriptionId }}
-      resourceGroupName: ${{ parameters.resourceGroup }}
+      ${{ if eq(parameters.scope, 'resourceGroup') }}:
+        resourceGroupName: ${{ parameters.resourceGroup }}
+      ${{ else }}:
+        location: ${{ parameters.location }}
       templateFile: ${{ parameters.templateFile }}
       parametersFile: ${{ parameters.parametersFile }}
     env: ${{ parameters.env }}
@@ -82,10 +96,13 @@ steps:
       type: deployment
       operation: create
       name: ${{ parameters.deploymentName }}
-      scope: resourceGroup
+      scope: ${{ parameters.scope }}
       azureResourceManagerConnection: ${{ parameters.serviceConnection }}
       subscriptionId: ${{ parameters.subscriptionId }}
-      resourceGroupName: ${{ parameters.resourceGroup }}
+      ${{ if eq(parameters.scope, 'resourceGroup') }}:
+        resourceGroupName: ${{ parameters.resourceGroup }}
+      ${{ else }}:
+        location: ${{ parameters.location }}
       templateFile: ${{ parameters.templateFile }}
       parametersFile: ${{ parameters.parametersFile }}
     env: ${{ parameters.env }}

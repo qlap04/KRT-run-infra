@@ -4,7 +4,7 @@ Stack: Bicep, Azure DevOps YAML. Application code lives in the separate `app` re
 Resources: VNet, App Service Plan + Web App (Node 22), Function App (shares the web B1 plan), Storage (one Blob container `proofs` with `incoming/` and `processed/` folders, Queue, Table), APIM Consumption. No Application Insights (cost).
 
 ## Layout
-- `bicep/main.bicep` + `bicep/modules/` + `bicep/env/<env>.bicepparam`
+- `bicep/main.bicep` (subscription scope: creates `rg-<prefix>-<env>` for the app stack and `rg-<prefix>-<env>-apim` for APIM) + `bicep/app.bicep` (app stack, RG scope) + `bicep/modules/` + `bicep/env/<env>.bicepparam`
 - `pipelines/provision.yml`, `pipelines/destroy.yml` (manual only) + `templates/` + `variables/<env>.yml`
 - `docs/SETUP_vi.md` – provisioning, cost and cleanup guide (Vietnamese)
 
@@ -24,6 +24,6 @@ Only `dev` is active for now (ADO Environment `krtrun-dev`, with approval). `mai
 |---|---|
 | `develop` | Plan → DEV |
 
-The Plan stage has a Build job (lint, build-params) and a WhatIf job (ensures the resource group, then what-if). Stages and jobs are declared in provision.yml; the reusable work is in step templates under pipelines/templates/steps/ (bicep-validate.yml, bicep-deploy.yml) so other repos can call them inside their own jobs. The service connection name is passed to templates as a parameter, because service connections are resolved at compile time. The deploy stage only deploys, through the ADO Environment `krtrun-dev` (approvals are configured in the UI).
+The Plan stage has a Build job (lint, build-params) and a WhatIf job (subscription-scope what-if; Bicep creates the resource groups). Stages and jobs are declared in provision.yml; the reusable work is in step templates under pipelines/templates/steps/ (bicep-validate.yml, bicep-deploy.yml) so other repos can call them inside their own jobs. The service connection name is passed to templates as a parameter, because service connections are resolved at compile time. The deploy stage only deploys, through the ADO Environment `krtrun-dev` (approvals are configured in the UI).
 - Feature branches start from `develop` (`feature/<name>`) and merge back through a PR.
 - To add an environment later: add `pipelines/variables/<env>.yml`, `bicep/env/<env>.bicepparam`, a stage, plus an Azure DevOps Environment and variable group.

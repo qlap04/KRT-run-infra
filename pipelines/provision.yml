@@ -50,11 +50,9 @@ stages:
       parameters:
         serviceConnection: sc-krtrun-dev
         subscriptionId: $(subscriptionId)
-        resourceGroup: $(resourceGroup)
-        parametersFile: $(parametersFile)
-        ensureResourceGroup: true
+        scope: subscription
         location: $(location)
-        tags: project=$(projectName) env=$(environment)
+        parametersFile: $(parametersFile)
         env:
           SESSION_SECRET: $(SESSION_SECRET)
           ADMIN_CODE: $(ADMIN_CODE)
@@ -78,7 +76,8 @@ stages:
               deploymentName: $(projectName)-$(environment)-$(Build.BuildId)
               serviceConnection: sc-krtrun-dev
               subscriptionId: $(subscriptionId)
-              resourceGroup: $(resourceGroup)
+              scope: subscription
+              location: $(location)
               parametersFile: $(parametersFile)
               env:
                 SESSION_SECRET: $(SESSION_SECRET)

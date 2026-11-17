@@ -7,7 +7,8 @@ infra/
 ├── AGENTS.md
 ├── .cursor/rules/bicep.mdc
 ├── bicep/
-│   ├── main.bicep
+│   ├── main.bicep   (scope subscription: tạo 2 RG, gọi app.bicep + APIM)
+│   ├── app.bicep    (scope RG: network, storage, web, function)
 │   ├── modules/           # network, storage, storage-private-endpoints, web, function, roles, apim
 │   └── env/               # dev.bicepparam (thêm <env>.bicepparam khi mở rộng)
 ├── pipelines/             # provision.yml, destroy.yml, templates/, variables/<env>.yml
@@ -67,11 +68,13 @@ flowchart TD
 |---|---|---|
 | `develop` | Plan → **DEV** | Environment `krtrun-dev` |
 
-Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.yml` của repo này theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Stage đầu là **Plan** có 2 job: **Build** (bicep lint, build-params, không cần Azure) rồi **WhatIf** (tạo resource group rỗng nếu chưa có, miễn phí, rồi xem trước thay đổi). Stage **DeployDev** chỉ deploy, chờ approve.
+Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.yml` của repo này theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Stage đầu là **Plan** có 2 job: **Build** (bicep lint, build-params, không cần Azure) rồi **WhatIf** (xem trước thay đổi ở scope subscription, gồm cả 2 resource group). Stage **DeployDev** chỉ deploy, chờ approve.
 
 Stage và job được khai báo ngay trong `provision.yml`. Phần làm việc thật nằm ở 2 **step template** dùng lại được:
 - `pipelines/templates/steps/bicep-validate.yml`: lint và build-params.
-- `pipelines/templates/steps/bicep-deploy.yml`: what-if (mặc định), hoặc deploy thật khi `deploy: true`; người gọi chạy what-if trước và đặt approval trước bước deploy, tùy chọn tạo RG trước (`ensureResourceGroup`).
+- `pipelines/templates/steps/bicep-deploy.yml`: what-if (mặc định), hoặc deploy thật khi `deploy: true`; người gọi chạy what-if trước và đặt approval trước bước deploy. `scope: resourceGroup` (mặc định, deploy vào 1 RG có sẵn, tùy chọn `ensureResourceGroup`) hoặc `scope: subscription` (template tự tạo RG, cần `location`).
+
+Resource group do Bicep tạo: `rg-krtrun-dev` (app) và `rg-krtrun-dev-apim` (APIM, tách riêng vì vòng đời và quyền khác app).
 
 Repo khác (ví dụ `app`) gọi step template này ngay trong job của họ:
 ```yaml
@@ -91,7 +94,8 @@ resources:
     deploy: true
     serviceConnection: sc-krtrun-dev
     subscriptionId: $(subscriptionId)
-    resourceGroup: rg-krtrun-dev
+    scope: subscription
+    location: australiaeast
     templateFile: KRT-run-infra/bicep/main.bicep
     parametersFile: KRT-run-infra/bicep/env/dev.bicepparam
 ```
@@ -107,7 +111,7 @@ Nhánh tính năng (`feature/<tên>`) cắt từ `develop` và merge lại bằn
 
 Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-run-infra](https://github.com/qlap04/KRT-run-infra). Không cần tạo repo Azure Repos hay push lại.
 
-1. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): tạo `sc-krtrun-dev`. Tên phải khớp `serviceConnection` truyền vào template trong `pipelines/provision.yml` (và ghi thẳng trong `pipelines/destroy.yml`). Có thể dùng chung với repo `app` nếu cùng project. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và pipeline tạo resource group.
+1. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): tạo `sc-krtrun-dev`. Tên phải khớp `serviceConnection` truyền vào template trong `pipelines/provision.yml` (và ghi thẳng trong `pipelines/destroy.yml`). Có thể dùng chung với repo `app` nếu cùng project. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và tạo resource group. Service connection phải có quyền ở **mức subscription** (không giới hạn trong 1 RG), vì deploy chạy ở scope subscription.
 2. **Environments**: chỉ cần `krtrun-dev`; vào Approvals and checks rồi **bật Approvals** (pipeline provision và destroy đều chờ duyệt ở đây).
 3. **Variable groups** (Pipelines → Library): chỉ cần `krtrun-dev`. Group này có 1 biến thường `subscriptionId` (Subscription ID của Azure, dạng GUID) và 3 biến secret (bấm biểu tượng khoá):
    - `SESSION_SECRET` (ví dụ `openssl rand -hex 32`), `ADMIN_CODE` (mã nhân viên của bạn), `API_KEY` (chuỗi ngẫu nhiên).
@@ -141,9 +145,9 @@ Gói chỉ được chọn B1, B2 hoặc B3 (tham số `appServicePlanSku` trong
 **Cách 1 – pipeline `pipelines/destroy.yml`** (chỉ chạy tay, không tự trigger; luôn xoá môi trường **dev**):
 1. Tạo pipeline `krtrun-destroy` giống bước tạo provision: **GitHub (YAML)** → repo `qlap04/KRT-run-infra` → `/pipelines/destroy.yml`, rồi **Run pipeline**.
 2. Pipeline dừng ở approval của environment `krtrun-dev`. **Bạn bấm Approve thì mới xoá**, không Approve thì không xoá gì (đây là chốt an toàn duy nhất).
-3. Khi chạy: xoá APIM trước, **purge** bản soft-delete để hôm sau tạo lại không bị trùng tên, rồi xoá resource group.
+3. Khi chạy: xoá APIM trước, **purge** bản soft-delete để hôm sau tạo lại không bị trùng tên, rồi xoá 2 resource group (`rg-krtrun-dev-apim` rồi `rg-krtrun-dev`).
 
-⚠️ Pipeline này xoá toàn bộ resource group `rg-krtrun-dev`. Hãy chắc chắn trước khi Approve.
+⚠️ Pipeline này xoá toàn bộ resource group `rg-krtrun-dev` và `rg-krtrun-dev-apim`. Hãy chắc chắn trước khi Approve.
 
 **Cách 2 – chạy tay bằng lệnh:**
 ```bash
