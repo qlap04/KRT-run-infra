@@ -3,3 +3,7 @@
 variables:
   projectName: krtrun
   location: australiaeast
+  # Created by bicep/main.bicep (subscription scope); names must match it.
+  # $(environment) comes from <env>.yml and is resolved at runtime.
+  resourceGroup: rg-$(projectName)-$(environment)
+  apimResourceGroup: rg-$(projectName)-$(environment)-apim
