@@ -4,21 +4,17 @@ targetScope = 'resourceGroup'
 
 @description('Resource name prefix (change it if the web/function app name is taken globally)')
 @minLength(3)
-@maxLength(10)
 param prefix string = 'krtrun'
 
 @description('Logical environment -> APP_ENV and tag')
-@allowed([ 'dev', 'sit', 'uat', 'preprod', 'prod' ])
 param environment string = 'dev'
 
 @description('Resource name set used in resource names (prefix-resourceEnv-*)')
-@allowed([ 'dev', 'prod' ])
 param resourceEnv string = 'dev'
 
 param location string = 'australiaeast'
 
-@description('App Service Plan SKU (B1 or higher; the free tier has no VNet integration)')
-@allowed([ 'B1', 'B2', 'B3' ])
+@description('App Service Plan SKU')
 param appServicePlanSku string = 'B1'
 
 @description('VNet address space ')
@@ -29,10 +25,6 @@ param appSubnetPrefix string
 
 @description('Subnet for the storage private endpoints')
 param peSubnetPrefix string
-
-param queueName string = 'upload-jobs'
-
-param blobContainer string = 'proofs'
 
 var base = '${prefix}-${resourceEnv}'
 var tags = {
@@ -76,13 +68,9 @@ module storagePe 'modules/network/storage-private-endpoints.bicep' = {
   }
 }
 
+// Queue, container and table names are app config (defaults in the app code).
 var sharedSettings = {
   APP_ENV: environment
-  QUEUE_NAME: queueName
-  BLOB_CONTAINER: blobContainer
-  TABLE_USERS: 'Users'
-  TABLE_RUNS: 'Runs'
-  TABLE_AUDIT: 'AuditLog'
 }
 
 // dependsOn storagePe: the private endpoints and DNS must exist before the apps start talking to storage
