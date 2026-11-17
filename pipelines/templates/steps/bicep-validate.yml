@@ -1,0 +1,21 @@
+# Step template: lint a Bicep file and build its parameter file.
+# Offline, no Azure call. Runs inside the caller's job.
+parameters:
+- name: templateFile
+  type: string
+  default: bicep/main.bicep
+- name: parametersFile
+  type: string
+# Env vars read by readEnvironmentVariable() in the .bicepparam file.
+# Placeholders are fine here; nothing is deployed.
+- name: env
+  type: object
+  default: {}
+
+steps:
+- script: |
+    set -e
+    az bicep lint --file ${{ parameters.templateFile }}
+    az bicep build-params --file ${{ parameters.parametersFile }} --stdout > /dev/null
+  displayName: Bicep lint and build-params
+  env: ${{ parameters.env }}

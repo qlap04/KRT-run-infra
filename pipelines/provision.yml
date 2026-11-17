@@ -1,6 +1,7 @@
 # KRT-run provision (repo: infra)
 #
 # develop → Plan (lint, what-if) → DEV
+# Jobs and stages live here; the reusable work is in templates/steps/*.
 # Approval: Azure DevOps Environment krtrun-dev.
 name: krtrun-provision-$(Date:yyyyMMdd)$(Rev:.r)
 
@@ -20,23 +21,72 @@ pr: none
 pool:
   vmImage: ubuntu-latest
 
+# Service connection is written as a literal below: it is resolved at
+# compile time, so a $(variable) does not work there.
+variables:
+- template: variables/common.yml
+- template: variables/dev.yml
+- group: krtrun-dev
+- name: parametersFile
+  value: bicep/env/dev.bicepparam
+
 stages:
 - stage: Plan
   displayName: Plan (lint, what-if)
-  variables:
-  - template: variables/common.yml
-  - template: variables/dev.yml
-  - group: krtrun-dev
   jobs:
-  - template: templates/validate-bicep.yml
-    parameters:
-      environment: dev
-      serviceConnection: sc-krtrun-dev
+  - job: Build
+    displayName: Lint and build-params
+    steps:
+    - checkout: self
+    - template: templates/steps/bicep-validate.yml
+      parameters:
+        parametersFile: $(parametersFile)
+        env:
+          SESSION_SECRET: placeholder
+          ADMIN_CODE: placeholder
+          API_KEY: placeholder
 
-- template: templates/deploy-infra.yml
-  parameters:
-    stageName: DeployDev
-    environment: dev
-    serviceConnection: sc-krtrun-dev
-    dependsOn: [Plan]
-    condition: succeeded()
+  - job: WhatIf
+    displayName: What-if
+    dependsOn: Build
+    steps:
+    - checkout: self
+    - template: templates/steps/bicep-deploy.yml
+      parameters:
+        operation: whatIf
+        serviceConnection: sc-krtrun-dev
+        subscriptionId: $(subscriptionId)
+        resourceGroup: $(resourceGroup)
+        parametersFile: $(parametersFile)
+        ensureResourceGroup: true
+        location: $(location)
+        tags: project=$(projectName) env=$(environment)
+        env:
+          SESSION_SECRET: $(SESSION_SECRET)
+          ADMIN_CODE: $(ADMIN_CODE)
+          API_KEY: $(API_KEY)
+
+- stage: DeployDev
+  displayName: Provision DEV
+  dependsOn: Plan
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy infra
+    environment: krtrun-dev
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+          - template: templates/steps/bicep-deploy.yml
+            parameters:
+              operation: create
+              deploymentName: $(projectName)-$(environment)-$(Build.BuildId)
+              serviceConnection: sc-krtrun-dev
+              subscriptionId: $(subscriptionId)
+              resourceGroup: $(resourceGroup)
+              parametersFile: $(parametersFile)
+              env:
+                SESSION_SECRET: $(SESSION_SECRET)
+                ADMIN_CODE: $(ADMIN_CODE)
+                API_KEY: $(API_KEY)

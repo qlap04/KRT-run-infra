@@ -1,0 +1,64 @@
+# Step template: what-if or deploy a Bicep file to a resource group.
+# Runs inside the caller's job; the caller owns the job, pool and approval.
+parameters:
+- name: serviceConnection
+  type: string
+- name: subscriptionId
+  type: string
+- name: resourceGroup
+  type: string
+- name: templateFile
+  type: string
+  default: bicep/main.bicep
+- name: parametersFile
+  type: string
+# whatIf = preview only; create = real deploy.
+- name: operation
+  type: string
+  default: whatIf
+  values: [whatIf, create]
+- name: deploymentName
+  type: string
+  default: bicep-$(Build.BuildId)
+# Create the resource group first if it is missing (an empty RG is free).
+- name: ensureResourceGroup
+  type: boolean
+  default: false
+- name: location
+  type: string
+  default: ''
+- name: tags
+  type: string
+  default: ''
+# Env vars read by readEnvironmentVariable() in the .bicepparam file
+# (map secrets here, e.g. SESSION_SECRET: $(SESSION_SECRET)).
+- name: env
+  type: object
+  default: {}
+
+steps:
+- ${{ if eq(parameters.ensureResourceGroup, true) }}:
+  - task: AzureCLI@3
+    displayName: Ensure resource group ${{ parameters.resourceGroup }}
+    inputs:
+      connectedServiceNameARM: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        az group create --name ${{ parameters.resourceGroup }} \
+          --location ${{ parameters.location }} \
+          --tags ${{ parameters.tags }} --output none
+
+- task: BicepDeploy@0
+  displayName: Bicep ${{ parameters.operation }}
+  inputs:
+    type: deployment
+    operation: ${{ parameters.operation }}
+    name: ${{ parameters.deploymentName }}
+    scope: resourceGroup
+    azureResourceManagerConnection: ${{ parameters.serviceConnection }}
+    subscriptionId: ${{ parameters.subscriptionId }}
+    resourceGroupName: ${{ parameters.resourceGroup }}
+    templateFile: ${{ parameters.templateFile }}
+    parametersFile: ${{ parameters.parametersFile }}
+  env: ${{ parameters.env }}

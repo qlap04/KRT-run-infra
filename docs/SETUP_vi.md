@@ -67,7 +67,34 @@ flowchart TD
 |---|---|---|
 | `develop` | Plan → **DEV** | Environment `krtrun-dev` |
 
-Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.yml` của repo này theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Stage đầu là **Plan** (`pipelines/templates/validate-bicep.yml`) có 2 job: **Build** (bicep lint, build-params, không cần Azure) rồi **WhatIf** (tạo resource group rỗng nếu chưa có, miễn phí, rồi xem trước thay đổi). Stage deploy dùng `pipelines/templates/deploy-infra.yml` (chỉ deploy, chờ approve).
+Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.yml` của repo này theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Stage đầu là **Plan** có 2 job: **Build** (bicep lint, build-params, không cần Azure) rồi **WhatIf** (tạo resource group rỗng nếu chưa có, miễn phí, rồi xem trước thay đổi). Stage **DeployDev** chỉ deploy, chờ approve.
+
+Stage và job được khai báo ngay trong `provision.yml`. Phần làm việc thật nằm ở 2 **step template** dùng lại được:
+- `pipelines/templates/steps/bicep-validate.yml`: lint và build-params.
+- `pipelines/templates/steps/bicep-deploy.yml`: what-if hoặc deploy (`operation: whatIf | create`), tùy chọn tạo RG trước (`ensureResourceGroup`).
+
+Repo khác (ví dụ `app`) gọi step template này ngay trong job của họ:
+```yaml
+resources:
+  repositories:
+  - repository: infra
+    type: github
+    name: qlap04/KRT-run-infra
+    ref: refs/heads/develop
+    endpoint: github.com_qlap04
+
+# trong steps của job:
+- checkout: self
+- checkout: infra   # nhiều checkout → mỗi repo vào $(Pipeline.Workspace)/s/<tên repo>
+- template: pipelines/templates/steps/bicep-deploy.yml@infra
+  parameters:
+    operation: create
+    serviceConnection: sc-krtrun-dev
+    subscriptionId: $(subscriptionId)
+    resourceGroup: rg-krtrun-dev
+    templateFile: KRT-run-infra/bicep/main.bicep
+    parametersFile: KRT-run-infra/bicep/env/dev.bicepparam
+```
 Approval **không** nằm trong YAML: bạn vào Azure DevOps → Pipelines → Environments → `krtrun-dev` → Approvals and checks, rồi bật Approvals.
 
 Nhánh tính năng (`feature/<tên>`) cắt từ `develop` và merge lại bằng pull request.
