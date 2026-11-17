@@ -12,7 +12,7 @@ parameters:
   default: bicep/main.bicep
 - name: parametersFile
   type: string
-# whatIf = preview only; create = real deploy.
+# whatIf = preview only; create = what-if first, then the real deploy.
 - name: operation
   type: string
   default: whatIf
@@ -49,12 +49,12 @@ steps:
           --location ${{ parameters.location }} \
           --tags ${{ parameters.tags }} --output none
 
+# Always preview: a create first runs a what-if so the log shows what changes.
 - task: BicepDeploy@0
-  displayName: Bicep ${{ parameters.operation }}
+  displayName: Bicep what-if
   inputs:
     type: deployment
-    operation: ${{ parameters.operation }}
-    name: ${{ parameters.deploymentName }}
+    operation: whatIf
     scope: resourceGroup
     azureResourceManagerConnection: ${{ parameters.serviceConnection }}
     subscriptionId: ${{ parameters.subscriptionId }}
@@ -62,3 +62,18 @@ steps:
     templateFile: ${{ parameters.templateFile }}
     parametersFile: ${{ parameters.parametersFile }}
   env: ${{ parameters.env }}
+
+- ${{ if eq(parameters.operation, 'create') }}:
+  - task: BicepDeploy@0
+    displayName: Bicep deploy
+    inputs:
+      type: deployment
+      operation: create
+      name: ${{ parameters.deploymentName }}
+      scope: resourceGroup
+      azureResourceManagerConnection: ${{ parameters.serviceConnection }}
+      subscriptionId: ${{ parameters.subscriptionId }}
+      resourceGroupName: ${{ parameters.resourceGroup }}
+      templateFile: ${{ parameters.templateFile }}
+      parametersFile: ${{ parameters.parametersFile }}
+    env: ${{ parameters.env }}
