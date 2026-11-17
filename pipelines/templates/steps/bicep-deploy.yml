@@ -17,7 +17,8 @@ parameters:
 - name: parametersFile
   type: string
 
-# false = what-if only; true = what-if first, then the real deploy.
+# false = what-if only (preview); true = real deploy.
+# Callers run a what-if first and put an approval gate before deploy: true.
 - name: deploy
   type: boolean
   default: false
@@ -60,19 +61,19 @@ steps:
           --location ${{ parameters.location }} \
           ${TAGS:+--tags $TAGS} --output none
 
-# Always preview: a create first runs a what-if so the log shows what changes.
-- task: BicepDeploy@0
-  displayName: Bicep what-if
-  inputs:
-    type: deployment
-    operation: whatIf
-    scope: resourceGroup
-    azureResourceManagerConnection: ${{ parameters.serviceConnection }}
-    subscriptionId: ${{ parameters.subscriptionId }}
-    resourceGroupName: ${{ parameters.resourceGroup }}
-    templateFile: ${{ parameters.templateFile }}
-    parametersFile: ${{ parameters.parametersFile }}
-  env: ${{ parameters.env }}
+- ${{ if eq(parameters.deploy, false) }}:
+  - task: BicepDeploy@0
+    displayName: Bicep what-if
+    inputs:
+      type: deployment
+      operation: whatIf
+      scope: resourceGroup
+      azureResourceManagerConnection: ${{ parameters.serviceConnection }}
+      subscriptionId: ${{ parameters.subscriptionId }}
+      resourceGroupName: ${{ parameters.resourceGroup }}
+      templateFile: ${{ parameters.templateFile }}
+      parametersFile: ${{ parameters.parametersFile }}
+    env: ${{ parameters.env }}
 
 - ${{ if eq(parameters.deploy, true) }}:
   - task: BicepDeploy@0

@@ -71,7 +71,7 @@ Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.y
 
 Stage và job được khai báo ngay trong `provision.yml`. Phần làm việc thật nằm ở 2 **step template** dùng lại được:
 - `pipelines/templates/steps/bicep-validate.yml`: lint và build-params.
-- `pipelines/templates/steps/bicep-deploy.yml`: what-if, hoặc what-if rồi deploy khi `deploy: true`, tùy chọn tạo RG trước (`ensureResourceGroup`).
+- `pipelines/templates/steps/bicep-deploy.yml`: what-if (mặc định), hoặc deploy thật khi `deploy: true`; người gọi chạy what-if trước và đặt approval trước bước deploy, tùy chọn tạo RG trước (`ensureResourceGroup`).
 
 Repo khác (ví dụ `app`) gọi step template này ngay trong job của họ:
 ```yaml
