@@ -1,9 +1,4 @@
-# Environment: dev  (only active environment)
-# Resource names here must match bicep/env/dev.bicepparam.
+# Environment: dev (only active environment)
 variables:
   environment: dev
-  resourceEnv: dev
-  prefix: krtrun
-  resourceGroup: rg-krtrun-dev
-  location: australiaeast
-
+  resourceGroup: rg-$(projectName)-$(environment)

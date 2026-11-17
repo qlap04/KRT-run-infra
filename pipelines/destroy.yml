@@ -30,7 +30,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 set -u
-                APIM="$(prefix)-$(resourceEnv)-apim"
+                APIM="$(projectName)-$(environment)-apim"
                 if [ "`az group exists --name $(resourceGroup)`" != "true" ]; then
                   echo "RG $(resourceGroup) missing — nothing to delete."
                   exit 0

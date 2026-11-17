@@ -1,3 +1,5 @@
 # Variables shared by every environment. NO secrets here.
+# Resource names must match bicep/env/<env>.bicepparam.
 variables:
   projectName: krtrun
+  location: australiaeast
