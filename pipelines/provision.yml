@@ -1,6 +1,6 @@
 # KRT-run provision (repo: infra)
 #
-# develop → Plan (build, lint, what-if) → DEV
+# develop → Plan (lint, what-if) → DEV
 # Approval: Azure DevOps Environment krtrun-dev.
 name: krtrun-provision-$(Date:yyyyMMdd)$(Rev:.r)
 
@@ -18,7 +18,7 @@ pr: none
 
 stages:
 - stage: Plan
-  displayName: Plan (build, lint, what-if)
+  displayName: Plan (lint, what-if)
   variables:
   - template: variables/common.yml
   - template: variables/dev.yml

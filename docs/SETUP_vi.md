@@ -16,7 +16,7 @@ infra/
 
 Kiểm tra cú pháp (không deploy):
 ```bash
-az bicep build --file bicep/main.bicep --stdout > /dev/null
+az bicep lint --file bicep/main.bicep
 az bicep build-params --file bicep/env/dev.bicepparam --stdout > /dev/null
 ```
 
@@ -67,7 +67,7 @@ flowchart TD
 |---|---|---|
 | `develop` | Plan → **DEV** | Environment `krtrun-dev` |
 
-Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.yml` của repo này theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Stage đầu là **Plan** (`pipelines/templates/validate-bicep.yml`) có 2 job: **Build** (bicep build, lint, build-params, không cần Azure) rồi **WhatIf** (tạo resource group rỗng nếu chưa có, miễn phí, rồi xem trước thay đổi). Stage deploy dùng `pipelines/templates/deploy-infra.yml` (chỉ deploy, chờ approve).
+Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.yml` của repo này theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Stage đầu là **Plan** (`pipelines/templates/validate-bicep.yml`) có 2 job: **Build** (bicep lint, build-params, không cần Azure) rồi **WhatIf** (tạo resource group rỗng nếu chưa có, miễn phí, rồi xem trước thay đổi). Stage deploy dùng `pipelines/templates/deploy-infra.yml` (chỉ deploy, chờ approve).
 Approval **không** nằm trong YAML: bạn vào Azure DevOps → Pipelines → Environments → `krtrun-dev` → Approvals and checks, rồi bật Approvals.
 
 Nhánh tính năng (`feature/<tên>`) cắt từ `develop` và merge lại bằng pull request.
@@ -86,7 +86,7 @@ Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-r
    - `SESSION_SECRET` (ví dụ `openssl rand -hex 32`), `ADMIN_CODE` (mã nhân viên của bạn), `API_KEY` (chuỗi ngẫu nhiên).
 4. **Tạo pipeline** (Pipelines → New pipeline → chọn **GitHub (YAML)** → chọn repo `qlap04/KRT-run-infra` → *Existing Azure Pipelines YAML file*): `krtrun-provision` → `/pipelines/provision.yml`. Lần đầu Azure DevOps sẽ xin quyền truy cập GitHub.
 5. **Đổi giá trị thật**: `publisherEmail` trong `bicep/env/dev.bicepparam`; `prefix` nếu tên `krtrun-dev-web` bị trùng toàn cầu (đổi `projectName` ở `pipelines/variables/common.yml` + `bicep/env/dev.bicepparam` **và** `pipelines/variables/dev.yml` của repo `app`).
-6. **Chạy**: đẩy hoặc merge vào `develop` → Plan (build, lint, what-if) → (approve trên `krtrun-dev`) → deploy DEV. Sau đó mới chạy `app-deploy` ở repo `app`.
+6. **Chạy**: đẩy hoặc merge vào `develop` → Plan (lint, what-if) → (approve trên `krtrun-dev`) → deploy DEV. Sau đó mới chạy `app-deploy` ở repo `app`.
 
 Đọc kết quả what-if trước khi bấm Approve.
 

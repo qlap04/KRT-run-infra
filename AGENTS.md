@@ -24,6 +24,6 @@ Only `dev` is active for now (ADO Environment `krtrun-dev`, with approval). `mai
 |---|---|
 | `develop` | Plan → DEV |
 
-The Plan stage has a Build job (build, lint, build-params) and a WhatIf job (ensures the resource group, then what-if). The service connection name is passed to templates as a parameter, because service connections are resolved at compile time. The deploy stage only deploys, through the ADO Environment `krtrun-dev` (approvals are configured in the UI).
+The Plan stage has a Build job (lint, build-params) and a WhatIf job (ensures the resource group, then what-if). The service connection name is passed to templates as a parameter, because service connections are resolved at compile time. The deploy stage only deploys, through the ADO Environment `krtrun-dev` (approvals are configured in the UI).
 - Feature branches start from `develop` (`feature/<name>`) and merge back through a PR.
 - To add an environment later: add `pipelines/variables/<env>.yml`, `bicep/env/<env>.bicepparam`, a stage, plus an Azure DevOps Environment and variable group.

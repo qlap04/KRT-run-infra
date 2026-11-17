@@ -1,5 +1,5 @@
 # Plan stage jobs for one environment:
-# - Build: build, lint and build-params (offline, no Azure call).
+# - Build: lint main.bicep and build the env params (offline, no Azure call).
 # - WhatIf: create the resource group if missing (empty RG is free), then
 #   preview the changes. Nothing else is changed in Azure.
 parameters:
@@ -16,7 +16,6 @@ jobs:
   - checkout: self
   - script: |
       set -e
-      az bicep build --file bicep/main.bicep --stdout > /dev/null
       az bicep lint --file bicep/main.bicep
       az bicep build-params --file bicep/env/${{ parameters.environment }}.bicepparam --stdout > /dev/null
     displayName: Build and lint
