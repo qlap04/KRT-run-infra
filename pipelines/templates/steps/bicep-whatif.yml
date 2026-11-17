@@ -6,7 +6,6 @@ parameters:
 - name: subscriptionId
   type: string
 
-# Where the deployment record is stored (resources use their own location).
 - name: location
   type: string
 

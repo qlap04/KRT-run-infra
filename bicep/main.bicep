@@ -3,23 +3,20 @@
 // - rg-<prefix>-<resourceEnv>-apim  APIM, kept apart (own lifecycle and access)
 targetScope = 'subscription'
 
-@description('Resource name prefix (change it if the web/function app name is taken globally)')
+@description('Resource name prefix')
 @minLength(3)
 @maxLength(10)
 param prefix string = 'krtrun'
 
 @description('Logical environment -> APP_ENV and tag')
-@allowed([ 'dev', 'sit', 'uat', 'preprod', 'prod' ])
 param environment string = 'dev'
 
 @description('Resource name set used in resource names (prefix-resourceEnv-*)')
-@allowed([ 'dev', 'prod' ])
 param resourceEnv string = 'dev'
 
 param location string = 'australiaeast'
 
-@description('App Service Plan SKU (B1 or higher; the free tier has no VNet integration)')
-@allowed([ 'B1', 'B2', 'B3' ])
+@description('App Service Plan SKU')
 param appServicePlanSku string = 'B1'
 
 @description('Create an APIM Consumption instance (in its own resource group)')

@@ -2,7 +2,7 @@
 // Called by main.bicep with scope = the app RG. APIM lives in its own RG.
 targetScope = 'resourceGroup'
 
-@description('Resource name prefix (change it if the web/function app name is taken globally)')
+@description('Resource name prefix')
 @minLength(3)
 param prefix string = 'krtrun'
 
