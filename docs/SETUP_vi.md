@@ -72,7 +72,8 @@ Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.y
 
 Stage và job được khai báo ngay trong `provision.yml`. Phần làm việc thật nằm ở 2 **step template** dùng lại được:
 - `pipelines/templates/steps/bicep-validate.yml`: lint và build-params.
-- `pipelines/templates/steps/bicep-deploy.yml`: what-if (mặc định), hoặc deploy thật khi `deploy: true`; người gọi chạy what-if trước và đặt approval trước bước deploy. `scope: resourceGroup` (mặc định, deploy vào 1 RG có sẵn, tùy chọn `ensureResourceGroup`) hoặc `scope: subscription` (template tự tạo RG, cần `location`).
+- `pipelines/templates/steps/bicep-whatif.yml`: chỉ xem trước (what-if), không thay đổi gì.
+- `pipelines/templates/steps/bicep-deploy.yml`: deploy thật; chỉ gọi trong deployment job có approval gate, sau khi đã chạy what-if. Cả 2 đều ở scope subscription (Bicep tự tạo RG), cần `location`.
 
 Resource group do Bicep tạo: `rg-krtrun-dev` (app) và `rg-krtrun-dev-apim` (APIM, tách riêng vì vòng đời và quyền khác app).
 
@@ -91,10 +92,8 @@ resources:
 - checkout: infra   # nhiều checkout → mỗi repo vào $(Pipeline.Workspace)/s/<tên repo>
 - template: pipelines/templates/steps/bicep-deploy.yml@infra
   parameters:
-    deploy: true
     serviceConnection: sc-krtrun-dev
     subscriptionId: $(subscriptionId)
-    scope: subscription
     location: australiaeast
     templateFile: KRT-run-infra/bicep/main.bicep
     parametersFile: KRT-run-infra/bicep/env/dev.bicepparam

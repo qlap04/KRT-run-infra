@@ -46,11 +46,10 @@ stages:
     dependsOn: Build
     steps:
     - checkout: self
-    - template: templates/steps/bicep-deploy.yml
+    - template: templates/steps/bicep-whatif.yml
       parameters:
         serviceConnection: sc-krtrun-dev
         subscriptionId: $(subscriptionId)
-        scope: subscription
         location: $(location)
         parametersFile: $(parametersFile)
         env:
@@ -72,11 +71,9 @@ stages:
           - checkout: self
           - template: templates/steps/bicep-deploy.yml
             parameters:
-              deploy: true
               deploymentName: $(projectName)-$(environment)-$(Build.BuildId)
               serviceConnection: sc-krtrun-dev
               subscriptionId: $(subscriptionId)
-              scope: subscription
               location: $(location)
               parametersFile: $(parametersFile)
               env:

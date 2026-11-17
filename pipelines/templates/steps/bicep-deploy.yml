@@ -1,5 +1,3 @@
-# Step template: what-if or deploy a Bicep file to a resource group.
-# Runs inside the caller's job; the caller owns the job, pool and approval.
 parameters:
 - name: serviceConnection
   type: string
@@ -7,17 +5,9 @@ parameters:
 - name: subscriptionId
   type: string
 
-# resourceGroup = deploy into one existing RG; subscription = the template
-# creates its own RGs (needs location, no resourceGroup).
-- name: scope
+# Where the deployment record is stored (resources use their own location).
+- name: location
   type: string
-  default: resourceGroup
-  values: [resourceGroup, subscription]
-
-# Required when scope is resourceGroup.
-- name: resourceGroup
-  type: string
-  default: ''
 
 - name: templateFile
   type: string
@@ -26,31 +16,9 @@ parameters:
 - name: parametersFile
   type: string
 
-# false = what-if only (preview); true = real deploy.
-# Callers run a what-if first and put an approval gate before deploy: true.
-- name: deploy
-  type: boolean
-  default: false
-
 - name: deploymentName
   type: string
   default: bicep-$(Build.BuildId)
-
-# scope resourceGroup only: create the RG first if it is missing (empty RG is free).
-- name: ensureResourceGroup
-  type: boolean
-  default: false
-
-# Required when scope is subscription (where the deployment record lives),
-# and when ensureResourceGroup is true.
-- name: location
-  type: string
-  default: ''
-
-# Optional RG tags, e.g. 'project=krtrun env=dev'. Empty = no tags.
-- name: tags
-  type: string
-  default: ''
 
 # Env vars read by readEnvironmentVariable() in the .bicepparam file
 # (map secrets here, e.g. SESSION_SECRET: $(SESSION_SECRET)).
@@ -59,50 +27,16 @@ parameters:
   default: {}
 
 steps:
-- ${{ if and(eq(parameters.scope, 'resourceGroup'), eq(parameters.ensureResourceGroup, true)) }}:
-  - task: AzureCLI@3
-    displayName: Ensure resource group ${{ parameters.resourceGroup }}
-    inputs:
-      connectedServiceNameARM: ${{ parameters.serviceConnection }}
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        TAGS="${{ parameters.tags }}"
-        az group create --name ${{ parameters.resourceGroup }} \
-          --location ${{ parameters.location }} \
-          ${TAGS:+--tags $TAGS} --output none
-
-- ${{ if eq(parameters.deploy, false) }}:
-  - task: BicepDeploy@0
-    displayName: Bicep what-if
-    inputs:
-      type: deployment
-      operation: whatIf
-      scope: ${{ parameters.scope }}
-      azureResourceManagerConnection: ${{ parameters.serviceConnection }}
-      subscriptionId: ${{ parameters.subscriptionId }}
-      ${{ if eq(parameters.scope, 'resourceGroup') }}:
-        resourceGroupName: ${{ parameters.resourceGroup }}
-      ${{ else }}:
-        location: ${{ parameters.location }}
-      templateFile: ${{ parameters.templateFile }}
-      parametersFile: ${{ parameters.parametersFile }}
-    env: ${{ parameters.env }}
-
-- ${{ if eq(parameters.deploy, true) }}:
-  - task: BicepDeploy@0
-    displayName: Bicep deploy
-    inputs:
-      type: deployment
-      operation: create
-      name: ${{ parameters.deploymentName }}
-      scope: ${{ parameters.scope }}
-      azureResourceManagerConnection: ${{ parameters.serviceConnection }}
-      subscriptionId: ${{ parameters.subscriptionId }}
-      ${{ if eq(parameters.scope, 'resourceGroup') }}:
-        resourceGroupName: ${{ parameters.resourceGroup }}
-      ${{ else }}:
-        location: ${{ parameters.location }}
-      templateFile: ${{ parameters.templateFile }}
-      parametersFile: ${{ parameters.parametersFile }}
-    env: ${{ parameters.env }}
+- task: BicepDeploy@0
+  displayName: Bicep deploy
+  inputs:
+    type: deployment
+    operation: create
+    name: ${{ parameters.deploymentName }}
+    scope: subscription
+    azureResourceManagerConnection: ${{ parameters.serviceConnection }}
+    subscriptionId: ${{ parameters.subscriptionId }}
+    location: ${{ parameters.location }}
+    templateFile: ${{ parameters.templateFile }}
+    parametersFile: ${{ parameters.parametersFile }}
+  env: ${{ parameters.env }}

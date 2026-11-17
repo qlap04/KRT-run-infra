@@ -1,0 +1,39 @@
+# Step template: what-if (preview only) of a subscription-scope Bicep file
+# (main.bicep creates its own resource groups). Changes nothing.
+parameters:
+- name: serviceConnection
+  type: string
+
+- name: subscriptionId
+  type: string
+
+# Where the deployment record is stored (resources use their own location).
+- name: location
+  type: string
+
+- name: templateFile
+  type: string
+  default: bicep/main.bicep
+
+- name: parametersFile
+  type: string
+
+# Env vars read by readEnvironmentVariable() in the .bicepparam file
+# (map secrets here, e.g. SESSION_SECRET: $(SESSION_SECRET)).
+- name: env
+  type: object
+  default: {}
+
+steps:
+- task: BicepDeploy@0
+  displayName: Bicep what-if
+  inputs:
+    type: deployment
+    operation: whatIf
+    scope: subscription
+    azureResourceManagerConnection: ${{ parameters.serviceConnection }}
+    subscriptionId: ${{ parameters.subscriptionId }}
+    location: ${{ parameters.location }}
+    templateFile: ${{ parameters.templateFile }}
+    parametersFile: ${{ parameters.parametersFile }}
+  env: ${{ parameters.env }}
