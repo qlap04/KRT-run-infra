@@ -1,5 +1,4 @@
 # Step template: what-if (preview only) of a subscription-scope Bicep file
-# (main.bicep creates its own resource groups). Changes nothing.
 parameters:
 - name: serviceConnection
   type: string
