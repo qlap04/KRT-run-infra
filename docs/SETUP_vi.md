@@ -9,7 +9,10 @@ infra/
 ├── bicep/
 │   ├── main.bicep   (scope subscription: tạo 2 RG, gọi app.bicep + APIM)
 │   ├── app.bicep    (scope RG: network, storage, web, function)
-│   ├── modules/           # network, storage, storage-private-endpoints, web, function, roles, apim
+│   ├── modules/
+│   │   ├── network/       # vnet, storage-private-endpoints (PE + Private DNS)
+│   │   ├── compute/       # web, function, apim
+│   │   └── storage/       # storage-account, roles (RBAC trên storage)
 │   └── env/               # dev.bicepparam (thêm <env>.bicepparam khi mở rộng)
 ├── pipelines/             # provision.yml, destroy.yml, templates/, variables/<env>.yml
 └── docs/SETUP_vi.md

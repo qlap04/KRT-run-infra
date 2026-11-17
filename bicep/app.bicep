@@ -44,7 +44,7 @@ var storageName = take(toLower(replace('st${prefix}${resourceEnv}${uniqueString(
 var webAppName = '${base}-web'
 var functionAppName = '${base}-func'
 
-module network 'modules/network.bicep' = {
+module network 'modules/network/vnet.bicep' = {
   name: 'network'
   params: {
     name: '${base}-vnet'
@@ -56,7 +56,7 @@ module network 'modules/network.bicep' = {
   }
 }
 
-module storage 'modules/storage.bicep' = {
+module storage 'modules/storage/storage-account.bicep' = {
   name: 'storage'
   params: {
     name: storageName
@@ -65,7 +65,7 @@ module storage 'modules/storage.bicep' = {
   }
 }
 
-module storagePe 'modules/storage-private-endpoints.bicep' = {
+module storagePe 'modules/network/storage-private-endpoints.bicep' = {
   name: 'storage-pe'
   params: {
     location: location
@@ -86,7 +86,7 @@ var sharedSettings = {
 }
 
 // dependsOn storagePe: the private endpoints and DNS must exist before the apps start talking to storage
-module web 'modules/web.bicep' = {
+module web 'modules/compute/web.bicep' = {
   name: 'web'
   dependsOn: [ storagePe ]
   params: {
@@ -101,7 +101,7 @@ module web 'modules/web.bicep' = {
   }
 }
 
-module func 'modules/function.bicep' = {
+module func 'modules/compute/function.bicep' = {
   name: 'function'
   dependsOn: [ storagePe ]
   params: {
@@ -116,12 +116,12 @@ module func 'modules/function.bicep' = {
   }
 }
 
-module rolesWeb 'modules/roles.bicep' = {
+module rolesWeb 'modules/storage/roles.bicep' = {
   name: 'roles-web'
   params: { storageAccountName: storage.outputs.name, siteName: webAppName, principalId: web.outputs.principalId }
 }
 
-module rolesFunc 'modules/roles.bicep' = {
+module rolesFunc 'modules/storage/roles.bicep' = {
   name: 'roles-func'
   params: { storageAccountName: storage.outputs.name, siteName: functionAppName, principalId: func.outputs.principalId }
 }

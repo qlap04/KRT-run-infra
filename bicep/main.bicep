@@ -72,7 +72,7 @@ module app 'app.bicep' = {
   }
 }
 
-module apim 'modules/apim.bicep' = if (deployApim) {
+module apim 'modules/compute/apim.bicep' = if (deployApim) {
   name: 'apim'
   scope: rgApim
   params: {
