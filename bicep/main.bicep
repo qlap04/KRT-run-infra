@@ -78,6 +78,7 @@ module apim 'modules/compute/apim.bicep' = if (deployApim) {
     tags: tags
     publisherEmail: publisherEmail
     publisherName: publisherName
+    allowedOrigins: [ 'https://${app.outputs.swaHostname}' ]
   }
 }
 
