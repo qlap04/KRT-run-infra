@@ -62,8 +62,6 @@ module storage 'modules/storage.bicep' = {
     name: storageName
     location: location
     tags: tags
-    queueName: queueName
-    blobContainer: blobContainer
   }
 }
 

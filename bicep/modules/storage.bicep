@@ -5,13 +5,6 @@ param location string
 
 param tags object
 
-@description('Single blob container for proof images: uploads under incoming/, processed under processed/')
-param blobContainer string = 'proofs'
-
-param queueName string = 'upload-jobs'
-
-param tableNames array = [ 'Users', 'Runs', 'AuditLog' ]
-
 resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: name
   location: location
@@ -24,7 +17,6 @@ resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     supportsHttpsTrafficOnly: true
     accessTier: 'Hot'
     // Private only: reachable through the private endpoints (storage-private-endpoints.bicep).
-    // Data plane only; ARM (containers, queues, tables, role assignments) is not affected
     publicNetworkAccess: 'Disabled'
     networkAcls: {
       defaultAction: 'Deny'
@@ -33,36 +25,8 @@ resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   }
 }
 
-resource blob 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
-  parent: sa
-  name: 'default'
-}
-
-resource images 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
-  parent: blob
-  name: blobContainer
-  properties: { publicAccess: 'None' }
-}
-
-resource queueSvc 'Microsoft.Storage/storageAccounts/queueServices@2023-05-01' = {
-  parent: sa
-  name: 'default'
-}
-
-resource queue 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
-  parent: queueSvc
-  name: queueName
-}
-
-resource tableSvc 'Microsoft.Storage/storageAccounts/tableServices@2023-05-01' = {
-  parent: sa
-  name: 'default'
-}
-
-resource tables 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = [for t in tableNames: {
-  parent: tableSvc
-  name: t
-}]
+// Containers, queues and tables are created by the app at startup
+// (storage.ensure() with ENSURE_STORAGE=true), not by infra.
 
 output name string = sa.name
 output id string = sa.id
