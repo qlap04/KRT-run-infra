@@ -14,6 +14,9 @@ param resourceEnv string = 'dev'
 
 param location string = 'australiaeast'
 
+@description('Static Web Apps region (not offered in australiaeast; eastasia is the closest)')
+param swaLocation string = 'eastasia'
+
 @description('App Service Plan SKU')
 param appServicePlanSku string = 'B1'
 
@@ -104,6 +107,15 @@ module func 'modules/compute/function.bicep' = {
   }
 }
 
+module swa 'modules/compute/static-web-app.bicep' = {
+  name: 'swa'
+  params: {
+    name: '${base}-swa'
+    location: swaLocation
+    tags: tags
+  }
+}
+
 module rolesWeb 'modules/storage/roles.bicep' = {
   name: 'roles-web'
   params: { storageAccountName: storage.outputs.name, siteName: webAppName, principalId: web.outputs.principalId }
@@ -118,3 +130,5 @@ output webAppName string = web.outputs.name
 output webAppUrl string = 'https://${web.outputs.defaultHostName}'
 output functionAppName string = func.outputs.name
 output storageAccountName string = storage.outputs.name
+output swaName string = swa.outputs.name
+output swaHostname string = swa.outputs.defaultHostname

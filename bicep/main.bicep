@@ -87,4 +87,6 @@ output webAppName string = app.outputs.webAppName
 output webAppUrl string = app.outputs.webAppUrl
 output functionAppName string = app.outputs.functionAppName
 output storageAccountName string = app.outputs.storageAccountName
+output swaName string = app.outputs.swaName
+output swaUrl string = 'https://${app.outputs.swaHostname}'
 output apimName string = deployApim ? '${base}-apim' : ''
