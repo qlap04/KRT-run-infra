@@ -1,8 +1,4 @@
 # KRT-run provision (repo: infra)
-#
-# develop → Plan (lint, what-if) → DEV
-# Jobs and stages live here; the reusable work is in templates/steps/*.
-# Approval: Azure DevOps Environment krtrun-dev.
 name: krtrun-provision-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:
@@ -17,7 +13,6 @@ trigger:
     - pipelines/destroy.yml
 pr: none
 
-# One agent image for every job; ubuntu-latest moves with Microsoft's images.
 pool:
   vmImage: ubuntu-latest
 
