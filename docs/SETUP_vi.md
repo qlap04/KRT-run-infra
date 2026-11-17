@@ -1,6 +1,6 @@
 # KRT-run (repo `infra`) – Hướng dẫn
 
-Repo này chứa **hạ tầng Azure** bằng **Bicep** và pipeline **provision** (Azure DevOps): VNet, App Service Plan + Web App (Node 22), Function App (chạy chung gói B1 với web), Storage (Blob/Queue/Table), APIM Consumption. Code ứng dụng và pipeline app-deploy nằm ở repo riêng `app`.
+Repo này chứa **hạ tầng Azure** bằng **Bicep** và pipeline **provision** (Azure DevOps): VNet, App Service Plan + Web App (Node 22), Function App (chạy chung gói B1 với web), Storage (Blob/Queue/Table), APIM Consumption, Static Web Apps Free (frontend React). Code ứng dụng và pipeline app-deploy nằm ở repo riêng `app`.
 
 ```
 infra/
@@ -8,10 +8,10 @@ infra/
 ├── .cursor/rules/bicep.mdc
 ├── bicep/
 │   ├── main.bicep   (scope subscription: tạo 2 RG, gọi app.bicep + APIM)
-│   ├── app.bicep    (scope RG: network, storage, web, function)
+│   ├── app.bicep    (scope RG: network, storage, web, function, static web app)
 │   ├── modules/
 │   │   ├── network/       # vnet, storage-private-endpoints (PE + Private DNS)
-│   │   ├── compute/       # web, function, apim
+│   │   ├── compute/       # web, function, apim, static-web-app
 │   │   └── storage/       # storage-account, roles (RBAC trên storage)
 │   └── env/               # dev.bicepparam (thêm <env>.bicepparam khi mở rộng)
 ├── pipelines/             # provision.yml, destroy.yml, templates/, variables/<env>.yml
@@ -135,6 +135,7 @@ Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-r
 | Private endpoint cho storage (blob, queue, table) | ~0,01 USD/giờ mỗi cái × 3 | ~0,5 USD (8 giờ × 22 ngày) |
 | Private DNS zone (blob, queue, table) | ~0,50 USD/zone/tháng × 3 | ~1,5 USD (tính theo tháng, xoá sớm vẫn có thể bị tính gần đủ) |
 | APIM | Consumption (1 triệu call miễn phí) | ~0đ |
+| Static Web Apps | Free (region `eastasia`, vì SWA không có ở australiaeast) | 0đ |
 | **Tổng bộ dev** | B1 + private endpoint + DNS (~2 USD, ~50k đồng) | **< 200k** (khoảng 140k) |
 
 Hiện chỉ dựng bộ **dev**, dùng gói **B1**. Giá B1 khoảng 0,019 USD/giờ, tức khoảng 0,15 USD (~4k đồng) cho 8 giờ. Một tháng 22 ngày làm việc khoảng 3,3 USD (~87k đồng). **Điều kiện: dùng xong là chạy pipeline destroy ngay.** Nếu để chạy 24/7 thì B1 tốn khoảng 13 USD/tháng (~330k), vượt 200k.
@@ -173,9 +174,10 @@ Bảng IP của mỗi môi trường chỉ nằm trong `bicep/env/<env>.biceppar
 
 ```mermaid
 flowchart LR
-  U["Người dùng"] -->|HTTPS public| W
-  C["Client API"] -->|HTTPS + API key| A["APIM Consumption (public)"]
-  A -->|/api/* + API key| W
+  U["Người dùng"] -->|tải HTML/JS| S["Static Web Apps Free (frontend React)"]
+  U -->|fetch /krtrun/api/* + Bearer JWT| A["APIM Consumption (public, CORS chỉ cho SWA)"]
+  C["Client API"] -->|HTTPS + API key| A
+  A -->|/api/*| W
   subgraph VNET["VNet 10.20.0.0/16 (link tới 3 Private DNS zone)"]
     subgraph SN["snet-app-integration"]
       W["Web App B1"]
@@ -194,7 +196,8 @@ Cần biết:
 - **Không xem được dữ liệu storage từ laptop.** Public access đã tắt, nên Storage browser trên portal hoặc Azure Storage Explorer sẽ báo lỗi 403. Muốn xem thì tạm bật: Storage account → **Networking** → **Public network access** = *Enabled from selected virtual networks and IP addresses* rồi thêm IP của bạn. Xem xong thì tắt lại. Lần deploy Bicep tiếp theo cũng tự tắt lại. Container, queue, table **không** do infra tạo: app tự tạo lúc khởi động (`storage.ensure()` khi `ENSURE_STORAGE=true`), đi qua private endpoint và dùng quyền Data Contributor của managed identity.
 - Function vẫn kết nối storage bằng key, vì quyền gán role của pipeline chỉ cho 3 role Contributor (Blob, Queue, Table). Key này nằm trong app setting, không bị output ra ngoài. Traffic của Function tới storage đi qua private endpoint nhờ route all và Private DNS.
 - **APIM Consumption không nối vào VNet được.** Muốn APIM vào VNet phải dùng Developer (~50 USD) hoặc Standard v2, đều vượt 200k. Vì vậy APIM vẫn public và gọi web bằng API key.
-- Static Web Apps (Free) cho FE, BE đặt sau APIM: khi đó `API_KEY` nên đặt bằng policy `set-header` trong APIM thay vì để lộ ở FE.
+- **Frontend nằm trên Static Web Apps Free**, gọi thẳng APIM (SWA Free không link backend được; tính năng đó cần Standard ~9 USD/tháng). Vì frontend và APIM khác domain, `apim.bicep` đặt policy CORS toàn cục chỉ cho phép origin của SWA (lấy từ output của module SWA).
+- Infra chỉ tạo SWA và CORS. Import API, policy `set-header` cho `API_KEY` và deploy frontend (bằng deployment token của SWA) là việc của pipeline app.
 
 ## 7. Giới hạn hiện tại (nên biết)
 

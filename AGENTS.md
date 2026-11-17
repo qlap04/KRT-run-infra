@@ -1,7 +1,7 @@
 # KRT-run – `infra` repo (Bicep + provision/destroy pipelines)
 
 Stack: Bicep, Azure DevOps YAML. Application code lives in the separate `app` repo (it has the `app-deploy` pipeline).
-Resources: VNet, App Service Plan + Web App (Node 22), Function App (shares the web B1 plan), Storage account only (the app creates its Blob container `proofs`, Queue and Tables at startup), APIM Consumption. No Application Insights (cost).
+Resources: VNet, App Service Plan + Web App (Node 22), Function App (shares the web B1 plan), Storage account only (the app creates its Blob container `proofs`, Queue and Tables at startup), APIM Consumption with a global CORS policy for the frontend origin, Static Web Apps Free for the React frontend (region `eastasia`; SWA has no australiaeast). No Application Insights (cost).
 
 ## Layout
 - `bicep/main.bicep` (subscription scope: creates `rg-<prefix>-<env>` for the app stack and `rg-<prefix>-<env>-apim` for APIM) + `bicep/app.bicep` (app stack, RG scope) + `bicep/modules/` + `bicep/env/<env>.bicepparam`
