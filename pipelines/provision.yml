@@ -53,7 +53,6 @@ stages:
     - checkout: self
     - template: templates/steps/bicep-deploy.yml
       parameters:
-        operation: whatIf
         serviceConnection: sc-krtrun-dev
         subscriptionId: $(subscriptionId)
         resourceGroup: $(resourceGroup)
@@ -80,7 +79,7 @@ stages:
           - checkout: self
           - template: templates/steps/bicep-deploy.yml
             parameters:
-              operation: create
+              deploy: true
               deploymentName: $(projectName)-$(environment)-$(Build.BuildId)
               serviceConnection: sc-krtrun-dev
               subscriptionId: $(subscriptionId)

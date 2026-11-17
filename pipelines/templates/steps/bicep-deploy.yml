@@ -17,11 +17,10 @@ parameters:
 - name: parametersFile
   type: string
 
-# whatIf = preview only; create = what-if first, then the real deploy.
-- name: operation
-  type: string
-  default: whatIf
-  values: [whatIf, create]
+# false = what-if only; true = what-if first, then the real deploy.
+- name: deploy
+  type: boolean
+  default: false
 
 - name: deploymentName
   type: string
@@ -75,7 +74,7 @@ steps:
     parametersFile: ${{ parameters.parametersFile }}
   env: ${{ parameters.env }}
 
-- ${{ if eq(parameters.operation, 'create') }}:
+- ${{ if eq(parameters.deploy, true) }}:
   - task: BicepDeploy@0
     displayName: Bicep deploy
     inputs:
