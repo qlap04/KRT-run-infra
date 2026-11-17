@@ -11,7 +11,6 @@ parameters:
 jobs:
 - job: Build
   displayName: Build and lint
-  pool: { vmImage: ubuntu-24.04 }
   steps:
   - checkout: self
   - script: |
@@ -27,7 +26,6 @@ jobs:
 - job: WhatIf
   displayName: What-if
   dependsOn: Build
-  pool: { vmImage: ubuntu-24.04 }
   steps:
   - checkout: self
   - task: AzureCLI@3

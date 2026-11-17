@@ -6,6 +6,10 @@ name: krtrun-destroy-$(Date:yyyyMMdd)$(Rev:.r)
 trigger: none
 pr: none
 
+# One agent image for every job; ubuntu-latest moves with Microsoft's images.
+pool:
+  vmImage: ubuntu-latest
+
 stages:
 - stage: Destroy
   displayName: Destroy DEV
@@ -16,7 +20,6 @@ stages:
   jobs:
   - deployment: Destroy
     displayName: Delete $(resourceGroup)
-    pool: { vmImage: ubuntu-24.04 }
     environment: krtrun-dev
     strategy:
       runOnce:
