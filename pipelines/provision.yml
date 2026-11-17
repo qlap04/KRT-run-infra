@@ -36,10 +36,6 @@ stages:
     - template: templates/steps/bicep-validate.yml
       parameters:
         parametersFile: $(parametersFile)
-        env:
-          SESSION_SECRET: placeholder
-          ADMIN_CODE: placeholder
-          API_KEY: placeholder
 
   - job: WhatIf
     displayName: What-if
@@ -52,10 +48,6 @@ stages:
         subscriptionId: $(subscriptionId)
         location: $(location)
         parametersFile: $(parametersFile)
-        env:
-          SESSION_SECRET: $(SESSION_SECRET)
-          ADMIN_CODE: $(ADMIN_CODE)
-          API_KEY: $(API_KEY)
 
 - stage: DeployDev
   displayName: Provision DEV
@@ -76,7 +68,3 @@ stages:
               subscriptionId: $(subscriptionId)
               location: $(location)
               parametersFile: $(parametersFile)
-              env:
-                SESSION_SECRET: $(SESSION_SECRET)
-                ADMIN_CODE: $(ADMIN_CODE)
-                API_KEY: $(API_KEY)

@@ -28,7 +28,7 @@ az bicep build-params --file bicep/env/dev.bicepparam --stdout > /dev/null
 | `APP_ENV` | Tên môi trường | param `environment` |
 | `STORAGE_ACCOUNT_NAME` | Tên storage (dùng managed identity) | output module storage |
 | `QUEUE_NAME`, `BLOB_CONTAINER`, `TABLE_USERS/RUNS/AUDIT` | Tên queue, container, table. Chỉ có **1 container** `proofs`: ảnh mới nằm ở thư mục `incoming/`, ảnh đã xử lý nằm ở `processed/` | param + giá trị mặc định |
-| `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` | **Secret** | biến môi trường của pipeline (variable group `krtrun-dev`) |
+| `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` | **Secret** | **không** do infra đặt; pipeline `app-deploy` ở repo `app` gắn vào Web App |
 
 ---
 
@@ -38,9 +38,9 @@ az bicep build-params --file bicep/env/dev.bicepparam --stdout > /dev/null
 flowchart LR
   A["Nhánh Git develop"] --> B["Stage DeployDev<br/>environment = dev"]
   B --> C["pipelines/variables/dev.yml<br/>(+ common.yml)<br/>RG, location, sku, tên app"]
-  B --> G["Variable group krtrun-dev<br/>subscriptionId, SESSION_SECRET, ADMIN_CODE, API_KEY"]
+  B --> G["Variable group krtrun-dev<br/>subscriptionId"]
   C --> D["Task BicepDeploy@0<br/>parametersFile: bicep/env/dev.bicepparam"]
-  G -->|"biến môi trường của task<br/>readEnvironmentVariable()"| D
+  G --> D
   D --> E["Bicep: app settings<br/>APP_ENV, STORAGE_ACCOUNT_NAME, ..."]
   E --> F["Web App / Function App<br/>process.env.APP_ENV ..."]
 ```
@@ -48,7 +48,7 @@ flowchart LR
 Giải thích dễ hiểu (giống việc **gọi món ăn**):
 1. **Nhánh Git** là "bàn nào gọi món". Hiện chỉ có nhánh `develop`, pipeline chạy Plan rồi deploy **DEV**.
 2. Stage DeployDev **tự nạp file `pipelines/variables/dev.yml`** (tên resource group, region, SKU, tên web app...) và phần dùng chung ở `common.yml`.
-3. **Secret không nằm trong repo.** Chúng nằm trong *variable group* `krtrun-dev` trên Azure DevOps. Task chuyển chúng thành biến môi trường, file `.bicepparam` đọc bằng `readEnvironmentVariable('SESSION_SECRET', '')`.
+3. **Infra không biết gì về secret của app.** `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` là cấu hình nghiệp vụ, nên pipeline `app-deploy` (repo `app`) gắn chúng vào app settings của Web App. Lưu ý: Bicep ghi lại **toàn bộ** app settings mỗi lần provision, nên sau mỗi lần provision phải chạy lại `app-deploy` để gắn lại secret.
 4. Pipeline dùng task có sẵn `BicepDeploy@0` (what-if ở stage Plan, deploy ở stage DEV) với file `bicep/env/dev.bicepparam`; mọi giá trị tham số nằm trong file này. File `pipelines/variables/dev.yml` chỉ giữ tên resource group, region, tên web app... để pipeline dùng, nên phải khớp với bicepparam.
 5. Bicep ghi các giá trị đó vào **app settings** của Web App và Function App.
 6. Khi chạy, Azure đưa app settings vào **`process.env`**, và `config.js` đọc ra.
@@ -112,11 +112,10 @@ Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-r
 
 1. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): tạo `sc-krtrun-dev`. Tên phải khớp `serviceConnection` truyền vào template trong `pipelines/provision.yml` (và ghi thẳng trong `pipelines/destroy.yml`). Có thể dùng chung với repo `app` nếu cùng project. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và tạo resource group. Service connection phải có quyền ở **mức subscription** (không giới hạn trong 1 RG), vì deploy chạy ở scope subscription.
 2. **Environments**: chỉ cần `krtrun-dev`; vào Approvals and checks rồi **bật Approvals** (pipeline provision và destroy đều chờ duyệt ở đây).
-3. **Variable groups** (Pipelines → Library): chỉ cần `krtrun-dev`. Group này có 1 biến thường `subscriptionId` (Subscription ID của Azure, dạng GUID) và 3 biến secret (bấm biểu tượng khoá):
-   - `SESSION_SECRET` (ví dụ `openssl rand -hex 32`), `ADMIN_CODE` (mã nhân viên của bạn), `API_KEY` (chuỗi ngẫu nhiên).
+3. **Variable groups** (Pipelines → Library): chỉ cần `krtrun-dev`. Pipeline infra chỉ cần biến thường `subscriptionId` (Subscription ID của Azure, dạng GUID). 3 biến secret `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` cũng để trong group này nhưng chỉ pipeline `app-deploy` dùng (xem repo `app`).
 4. **Tạo pipeline** (Pipelines → New pipeline → chọn **GitHub (YAML)** → chọn repo `qlap04/KRT-run-infra` → *Existing Azure Pipelines YAML file*): `krtrun-provision` → `/pipelines/provision.yml`. Lần đầu Azure DevOps sẽ xin quyền truy cập GitHub.
 5. **Đổi giá trị thật**: `publisherEmail` trong `bicep/env/dev.bicepparam`; `prefix` nếu tên `krtrun-dev-web` bị trùng toàn cầu (đổi `projectName` ở `pipelines/variables/common.yml` + `bicep/env/dev.bicepparam` **và** `pipelines/variables/dev.yml` của repo `app`).
-6. **Chạy**: đẩy hoặc merge vào `develop` → Plan (lint, what-if) → (approve trên `krtrun-dev`) → deploy DEV. Sau đó mới chạy `app-deploy` ở repo `app`.
+6. **Chạy**: đẩy hoặc merge vào `develop` → Plan (lint, what-if) → (approve trên `krtrun-dev`) → deploy DEV. Sau đó **luôn** chạy `app-deploy` ở repo `app` (nó gắn lại secret).
 
 Đọc kết quả what-if trước khi bấm Approve.
 
@@ -198,7 +197,7 @@ Cần biết:
 
 - Session lưu trong bộ nhớ (MemoryStore): chỉ ổn với **1 instance**; restart là đăng nhập lại. Nhiều instance thì đổi sang store ngoài.
 - Chưa có giới hạn số lần đăng nhập sai (rate limit).
-- `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` hiện đặt thành *app setting*. Muốn an toàn hơn thì chuyển sang Key Vault reference.
+- `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` hiện do pipeline app đặt thành *app setting*. Muốn an toàn hơn thì chuyển sang Key Vault reference.
 - Bicep và pipeline **chưa được chạy thật trên Azure** (chỉ build/validate cú pháp).
 - Pipeline app-deploy deploy Function lên gói B1. Cần kiểm tra lại task deploy function ở repo `app` lần chạy đầu.
 

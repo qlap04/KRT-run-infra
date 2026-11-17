@@ -17,12 +17,6 @@ parameters:
 - name: parametersFile
   type: string
 
-# Env vars read by readEnvironmentVariable() in the .bicepparam file
-# (map secrets here, e.g. SESSION_SECRET: $(SESSION_SECRET)).
-- name: env
-  type: object
-  default: {}
-
 steps:
 - task: BicepDeploy@0
   displayName: Bicep what-if
@@ -35,4 +29,3 @@ steps:
     location: ${{ parameters.location }}
     templateFile: ${{ parameters.templateFile }}
     parametersFile: ${{ parameters.parametersFile }}
-  env: ${{ parameters.env }}

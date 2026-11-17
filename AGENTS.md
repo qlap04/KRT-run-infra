@@ -10,7 +10,7 @@ Resources: VNet, App Service Plan + Web App (Node 22), Function App (shares the 
 
 ## Rules
 - NEVER run `az deployment`, `az login`, `terraform apply` or deploy without Kai's explicit OK. Only validate: `az bicep build` / `build-params`.
-- No hardcoded secrets; never output secrets from Bicep. Read them with `readEnvironmentVariable()`; the values live in the Azure DevOps variable group `krtrun-<env>`.
+- No hardcoded secrets; never output secrets from Bicep. App secrets (SESSION_SECRET, ADMIN_CODE, API_KEY) are business config: the app repo's pipeline sets them as app settings, so infra Bicep and pipelines never take them.
 - Cheapest SKUs by default (budget < 200k VND/month): APIM Consumption. `dev` uses App Service plan **B1** (~0.019 USD/h) so VNet integration really works; destroy it after use via the destroy pipeline. The function shares the web plan, both route all traffic through the VNet and storage is private-only (public access disabled; private endpoints for blob/queue/table in `snet-pe` + `privatelink.*` Private DNS zones linked to the VNet).
 - Only `dev` is active. Each environment has its own files `bicep/env/<env>.bicepparam` and `pipelines/variables/<env>.yml`; they must stay in sync.
 - If you rename a resource here, update `pipelines/variables/<env>.yml` in the `app` repo too.

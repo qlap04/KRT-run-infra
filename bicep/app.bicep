@@ -21,18 +21,6 @@ param location string = 'australiaeast'
 @allowed([ 'B1', 'B2', 'B3' ])
 param appServicePlanSku string = 'B1'
 
-@secure()
-@description('Session signing key (read from an environment variable in .bicepparam)')
-param sessionSecret string = ''
-
-@secure()
-@description('Employee code that becomes admin on registration')
-param adminCode string = ''
-
-@secure()
-@description('API key APIM uses to call /api/*')
-param apiKey string = ''
-
 @description('VNet address space ')
 param vnetAddressPrefix string
 
@@ -111,11 +99,7 @@ module web 'modules/web.bicep' = {
     skuName: appServicePlanSku
     integrationSubnetId: network.outputs.appIntegrationSubnetId
     storageAccountName: storage.outputs.name
-    appSettings: union(sharedSettings, {
-      SESSION_SECRET: sessionSecret
-      ADMIN_CODE: adminCode
-      API_KEY: apiKey
-    })
+    appSettings: sharedSettings
   }
 }
 

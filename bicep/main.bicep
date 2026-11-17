@@ -29,18 +29,6 @@ param publisherEmail string = 'admin@example.com'
 
 param publisherName string = 'KRT-run'
 
-@secure()
-@description('Session signing key (read from an environment variable in .bicepparam)')
-param sessionSecret string = ''
-
-@secure()
-@description('Employee code that becomes admin on registration')
-param adminCode string = ''
-
-@secure()
-@description('API key APIM uses to call /api/*')
-param apiKey string = ''
-
 @description('VNet address space')
 param vnetAddressPrefix string
 
@@ -78,9 +66,6 @@ module app 'app.bicep' = {
     resourceEnv: resourceEnv
     location: location
     appServicePlanSku: appServicePlanSku
-    sessionSecret: sessionSecret
-    adminCode: adminCode
-    apiKey: apiKey
     vnetAddressPrefix: vnetAddressPrefix
     appSubnetPrefix: appSubnetPrefix
     peSubnetPrefix: peSubnetPrefix
