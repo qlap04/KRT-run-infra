@@ -3,34 +3,44 @@
 parameters:
 - name: serviceConnection
   type: string
+
 - name: subscriptionId
   type: string
+
 - name: resourceGroup
   type: string
+
 - name: templateFile
   type: string
   default: bicep/main.bicep
+
 - name: parametersFile
   type: string
+
 # whatIf = preview only; create = what-if first, then the real deploy.
 - name: operation
   type: string
   default: whatIf
   values: [whatIf, create]
+
 - name: deploymentName
   type: string
   default: bicep-$(Build.BuildId)
+
 # Create the resource group first if it is missing (an empty RG is free).
 - name: ensureResourceGroup
   type: boolean
   default: false
+
 - name: location
   type: string
   default: ''
+
 # Optional RG tags, e.g. 'project=krtrun env=dev'. Empty = no tags.
 - name: tags
   type: string
   default: ''
+
 # Env vars read by readEnvironmentVariable() in the .bicepparam file
 # (map secrets here, e.g. SESSION_SECRET: $(SESSION_SECRET)).
 - name: env

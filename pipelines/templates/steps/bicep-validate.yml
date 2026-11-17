@@ -3,10 +3,12 @@ parameters:
 - name: templateFile
   type: string
   default: bicep/main.bicep
+
 - name: parametersFile
   type: string
+
 # Env vars read by readEnvironmentVariable() in the .bicepparam file.
-# Placeholders are fine here; nothing is deployed.
+
 - name: env
   type: object
   default: {}
