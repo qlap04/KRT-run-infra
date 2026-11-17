@@ -27,6 +27,7 @@ parameters:
 - name: location
   type: string
   default: ''
+# Optional RG tags, e.g. 'project=krtrun env=dev'. Empty = no tags.
 - name: tags
   type: string
   default: ''
@@ -45,9 +46,10 @@ steps:
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
+        TAGS="${{ parameters.tags }}"
         az group create --name ${{ parameters.resourceGroup }} \
           --location ${{ parameters.location }} \
-          --tags ${{ parameters.tags }} --output none
+          ${TAGS:+--tags $TAGS} --output none
 
 # Always preview: a create first runs a what-if so the log shows what changes.
 - task: BicepDeploy@0

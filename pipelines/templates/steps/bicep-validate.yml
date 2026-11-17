@@ -1,5 +1,4 @@
 # Step template: lint a Bicep file and build its parameter file.
-# Offline, no Azure call. Runs inside the caller's job.
 parameters:
 - name: templateFile
   type: string
