@@ -25,7 +25,7 @@ pool:
 variables:
 - template: variables/common.yml
 - template: variables/dev.yml
-- group: krtrun-dev
+- group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group
 - name: parametersFile
   value: bicep/env/dev.bicepparam
 
@@ -35,7 +35,7 @@ stages:
   jobs:
   - deployment: Deploy
     displayName: Lint, what-if and deploy
-    environment: krtrun-dev
+    environment: ${{ variables.projectName }}-${{ variables.environment }}   # per-env approval gate
     strategy:
       runOnce:
         deploy:

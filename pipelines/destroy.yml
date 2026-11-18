@@ -1,5 +1,5 @@
 # KRT-run DESTROY — manual only (trigger: none).
-# Safety: ADO Environment approval on krtrun-dev.
+# Safety: ADO Environment approval on <projectName>-<environment> (krtrun-dev).
 # Order: delete + purge APIM, then delete the APIM and app resource groups.
 name: krtrun-destroy-$(Date:yyyyMMdd)$(Rev:.r)
 
@@ -10,17 +10,19 @@ pr: none
 pool:
   vmImage: ubuntu-latest
 
+# Pipeline level so ${{ variables.* }} can build the per-env group and environment names.
+variables:
+- template: variables/common.yml
+- template: variables/dev.yml
+- group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group
+
 stages:
 - stage: Destroy
   displayName: Destroy DEV
-  variables:
-  - template: variables/common.yml
-  - template: variables/dev.yml
-  - group: krtrun-dev
   jobs:
   - deployment: Destroy
     displayName: Delete $(apimResourceGroup) and $(resourceGroup)
-    environment: krtrun-dev
+    environment: ${{ variables.projectName }}-${{ variables.environment }}   # per-env approval gate
     strategy:
       runOnce:
         deploy:
