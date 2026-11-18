@@ -1,5 +1,5 @@
 // Entry point. Subscription scope so Bicep creates the resource groups itself:
-// - rg-<prefix>-<resourceEnv>       app stack (network, storage, web, function)
+// - rg-<prefix>-<resourceEnv>       network.bicep, then app.bicep
 // - rg-<prefix>-<resourceEnv>-apim  APIM, kept apart (own lifecycle and access)
 targetScope = 'subscription'
 
@@ -54,6 +54,20 @@ resource rgApim 'Microsoft.Resources/resourceGroups@2024-03-01' = if (deployApim
   tags: tags
 }
 
+module network 'network.bicep' = {
+  name: 'network'
+  scope: rgApp
+  params: {
+    prefix: prefix
+    resourceEnv: resourceEnv
+    location: location
+    tags: tags
+    vnetAddressPrefix: vnetAddressPrefix
+    appSubnetPrefix: appSubnetPrefix
+    peSubnetPrefix: peSubnetPrefix
+  }
+}
+
 module app 'app.bicep' = {
   name: 'app'
   scope: rgApp
@@ -63,9 +77,9 @@ module app 'app.bicep' = {
     resourceEnv: resourceEnv
     location: location
     appServicePlanSku: appServicePlanSku
-    vnetAddressPrefix: vnetAddressPrefix
-    appSubnetPrefix: appSubnetPrefix
-    peSubnetPrefix: peSubnetPrefix
+    appIntegrationSubnetId: network.outputs.appIntegrationSubnetId
+    peSubnetId: network.outputs.peSubnetId
+    dnsZoneIds: network.outputs.dnsZoneIds
   }
 }
 

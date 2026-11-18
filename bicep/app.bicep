@@ -1,5 +1,5 @@
-// App stack: everything that lives in the app resource group.
-// Called by main.bicep with scope = the app RG. APIM lives in its own RG.
+// App stack: storage, private endpoints, web, function and the frontend SWA.
+// Called by main.bicep with scope = the app RG, after network.bicep.
 targetScope = 'resourceGroup'
 
 @description('Resource name prefix')
@@ -20,14 +20,14 @@ param swaLocation string = 'eastasia'
 @description('App Service Plan SKU')
 param appServicePlanSku string = 'B1'
 
-@description('VNet address space ')
-param vnetAddressPrefix string
+@description('Subnet id for App Service VNet integration (from network.bicep)')
+param appIntegrationSubnetId string
 
-@description('Subnet for App Service VNet integration (web + function)')
-param appSubnetPrefix string
+@description('Subnet id for the storage private endpoints (from network.bicep)')
+param peSubnetId string
 
-@description('Subnet for the storage private endpoints')
-param peSubnetPrefix string
+@description('Private DNS zone ids for blob, queue, table (from network.bicep)')
+param dnsZoneIds array
 
 var base = '${prefix}-${resourceEnv}'
 var tags = {
@@ -38,18 +38,6 @@ var tags = {
 var storageName = take(toLower(replace('st${prefix}${resourceEnv}${uniqueString(resourceGroup().id)}', '-', '')), 24)
 var webAppName = '${base}-web'
 var functionAppName = '${base}-func'
-
-module network 'modules/network/vnet.bicep' = {
-  name: 'network'
-  params: {
-    name: '${base}-vnet'
-    location: location
-    tags: tags
-    addressPrefix: vnetAddressPrefix
-    appSubnetPrefix: appSubnetPrefix
-    peSubnetPrefix: peSubnetPrefix
-  }
-}
 
 module storage 'modules/storage/storage-account.bicep' = {
   name: 'storage'
@@ -66,8 +54,8 @@ module storagePe 'modules/network/storage-private-endpoints.bicep' = {
     location: location
     tags: tags
     storageAccountName: storage.outputs.name
-    vnetId: network.outputs.vnetId
-    peSubnetId: network.outputs.peSubnetId
+    peSubnetId: peSubnetId
+    dnsZoneIds: dnsZoneIds
   }
 }
 
@@ -86,7 +74,7 @@ module web 'modules/compute/web.bicep' = {
     location: location
     tags: tags
     skuName: appServicePlanSku
-    integrationSubnetId: network.outputs.appIntegrationSubnetId
+    integrationSubnetId: appIntegrationSubnetId
     storageAccountName: storage.outputs.name
     appSettings: sharedSettings
   }
@@ -101,7 +89,7 @@ module func 'modules/compute/function.bicep' = {
     tags: tags
     // The function shares the web plan and joins the same VNet subnet
     planId: web.outputs.planId
-    integrationSubnetId: network.outputs.appIntegrationSubnetId
+    integrationSubnetId: appIntegrationSubnetId
     storageAccountName: storage.outputs.name
     appSettings: sharedSettings
   }
