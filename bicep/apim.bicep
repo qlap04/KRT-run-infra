@@ -1,30 +1,26 @@
 // APIM stack, deployed by its own pipeline (provision-apim.yml).
-// Subscription scope: creates rg-<prefix>-<resourceEnv>-apim and the APIM in it.
+// Subscription scope: creates rg-<prefix>-<environment>-apim and the APIM in it.
 // Run after the app stack: CORS reads the frontend hostname from the existing SWA.
 targetScope = 'subscription'
 
 @description('Resource name prefix')
 @minLength(3)
 @maxLength(10)
-param prefix string = 'krtrun'
+param prefix string
 
-@description('Logical environment -> tag')
-param environment string = 'dev'
+@description('Environment name (dev) -> resource names, tag')
+param environment string
 
-@description('Resource name set used in resource names (prefix-resourceEnv-*)')
-param resourceEnv string = 'dev'
-
-param location string = 'australiaeast'
+param location string
 
 param publisherEmail string
 
 param publisherName string = 'KRT-run'
 
-var base = '${prefix}-${resourceEnv}'
+var base = '${prefix}-${environment}'
 var tags = {
   project: 'krtrun'
   env: environment
-  resourceEnv: resourceEnv
 }
 
 resource rgApim 'Microsoft.Resources/resourceGroups@2024-03-01' = {

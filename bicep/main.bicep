@@ -1,20 +1,17 @@
 // Entry point. Subscription scope so Bicep creates the resource groups itself:
-// - rg-<prefix>-<resourceEnv>       network.bicep, then app.bicep
+// - rg-<prefix>-<environment>       network.bicep, then app.bicep
 // APIM is a separate stack: bicep/apim.bicep with its own pipeline.
 targetScope = 'subscription'
 
 @description('Resource name prefix')
 @minLength(3)
 @maxLength(10)
-param prefix string = 'krtrun'
+param prefix string
 
-@description('Logical environment -> APP_ENV and tag')
-param environment string = 'dev'
+@description('Environment name (dev) -> resource names, APP_ENV and tag')
+param environment string
 
-@description('Resource name set used in resource names (prefix-resourceEnv-*)')
-param resourceEnv string = 'dev'
-
-param location string = 'australiaeast'
+param location string
 
 @description('App Service Plan SKU')
 param appServicePlanSku string = 'B1'
@@ -28,11 +25,10 @@ param appSubnetPrefix string
 @description('Subnet for the storage private endpoints')
 param peSubnetPrefix string
 
-var base = '${prefix}-${resourceEnv}'
+var base = '${prefix}-${environment}'
 var tags = {
   project: 'krtrun'
   env: environment
-  resourceEnv: resourceEnv
 }
 
 resource rgApp 'Microsoft.Resources/resourceGroups@2024-03-01' = {
