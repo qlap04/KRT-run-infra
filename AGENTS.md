@@ -22,8 +22,8 @@ Only `dev` is active for now (ADO Environment `krtrun-dev`, with approval). `mai
 
 | Branch | `provision` pipeline runs |
 |---|---|
-| `develop` | Plan → DEV |
+| `develop` | DEV (approval, then lint → what-if → deploy) |
 
-The Plan stage has a Build job (lint, build-params) and a WhatIf job (subscription-scope what-if; Bicep creates the resource groups). Stages and jobs are declared in provision.yml; the reusable work is in step templates under pipelines/templates/steps/ (bicep-validate.yml, bicep-whatif.yml, bicep-deploy.yml) so other repos can call them inside their own jobs. The service connection name is passed to templates as a parameter, because service connections are resolved at compile time. The deploy stage only deploys, through the ADO Environment `krtrun-dev` (approvals are configured in the UI).
+One stage, one deployment job on the ADO Environment `krtrun-dev` (approvals are configured in the UI). Stages and jobs are declared in provision.yml / provision-apim.yml; the reusable work is one step template, pipelines/templates/steps/bicep-deployment.yml (lint + build-params, what-if, deploy at subscription scope), so other repos call a single template inside their own job. The service connection is set per environment in variables/<env>.yml and passed as `${{ variables.serviceConnection }}`, because service connections are resolved at compile time.
 - Feature branches start from `develop` (`feature/<name>`) and merge back through a PR.
 - To add an environment later: add `pipelines/variables/<env>.yml`, `bicep/env/<env>.bicepparam`, a stage, plus an Azure DevOps Environment and variable group.

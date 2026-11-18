@@ -16,8 +16,8 @@ pr: none
 pool:
   vmImage: ubuntu-latest
 
-# Service connection is written as a literal below: it is resolved at
-# compile time, so a $(variable) does not work there.
+# Service connection: per environment, set in variables/<env>.yml and read with
+# ${{ variables.serviceConnection }} (compile time; $(var) does not work there).
 variables:
 - template: variables/common.yml
 - template: variables/dev.yml
@@ -28,48 +28,22 @@ variables:
   value: bicep/apim.bicep
 
 stages:
-- stage: Plan
-  displayName: Plan (lint, what-if)
-  jobs:
-  - job: Build
-    displayName: Lint and build-params
-    steps:
-    - checkout: self
-    - template: templates/steps/bicep-validate.yml
-      parameters:
-        templateFile: $(templateFile)
-        parametersFile: $(parametersFile)
-
-  - job: WhatIf
-    displayName: What-if
-    dependsOn: Build
-    steps:
-    - checkout: self
-    - template: templates/steps/bicep-whatif.yml
-      parameters:
-        serviceConnection: sc-krtrun-dev
-        subscriptionId: $(subscriptionId)
-        location: $(location)
-        templateFile: $(templateFile)
-        parametersFile: $(parametersFile)
-
 - stage: DeployDev
   displayName: Provision APIM DEV
-  dependsOn: Plan
   jobs:
   - deployment: Deploy
-    displayName: Deploy APIM
+    displayName: Lint, what-if and deploy
     environment: krtrun-dev
     strategy:
       runOnce:
         deploy:
           steps:
           - checkout: self
-          - template: templates/steps/bicep-deploy.yml
+          - template: templates/steps/bicep-deployment.yml
             parameters:
               deploymentName: $(projectName)-$(environment)-apim-$(Build.BuildId)
               templateFile: $(templateFile)
-              serviceConnection: sc-krtrun-dev
+              serviceConnection: ${{ variables.serviceConnection }}
               subscriptionId: $(subscriptionId)
               location: $(location)
               parametersFile: $(parametersFile)

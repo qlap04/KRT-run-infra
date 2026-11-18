@@ -1,3 +1,5 @@
 # Environment: dev (only active environment)
 variables:
   environment: dev
+  # One service connection per environment (prod gets sc-krtrun-prod in prod.yml)
+  serviceConnection: sc-krtrun-dev

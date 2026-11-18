@@ -1,0 +1,54 @@
+# Step template: lint + build-params, what-if, then deploy (subscription scope).
+# Use it only inside a deployment job that has the environment approval gate.
+parameters:
+- name: serviceConnection
+  type: string
+
+- name: subscriptionId
+  type: string
+
+- name: location
+  type: string
+
+- name: templateFile
+  type: string
+  default: bicep/main.bicep
+
+- name: parametersFile
+  type: string
+
+- name: deploymentName
+  type: string
+  default: bicep-$(Build.BuildId)
+
+steps:
+- script: |
+    set -e
+    az bicep lint --file ${{ parameters.templateFile }}
+    az bicep build-params --file ${{ parameters.parametersFile }} --stdout > /dev/null
+  displayName: Bicep lint and build-params
+
+- task: BicepDeploy@0
+  displayName: Bicep what-if
+  inputs:
+    type: deployment
+    operation: whatIf
+    scope: subscription
+    azureResourceManagerConnection: ${{ parameters.serviceConnection }}
+    subscriptionId: ${{ parameters.subscriptionId }}
+    location: ${{ parameters.location }}
+    templateFile: ${{ parameters.templateFile }}
+    parametersFile: ${{ parameters.parametersFile }}
+
+- task: BicepDeploy@0
+  displayName: Bicep deploy
+  inputs:
+    type: deployment
+    operation: create
+    name: ${{ parameters.deploymentName }}
+    scope: subscription
+    azureResourceManagerConnection: ${{ parameters.serviceConnection }}
+    subscriptionId: ${{ parameters.subscriptionId }}
+    location: ${{ parameters.location }}
+    templateFile: ${{ parameters.templateFile }}
+    parametersFile: ${{ parameters.parametersFile }}

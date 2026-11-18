@@ -28,7 +28,7 @@ stages:
           - task: AzureCLI@3
             displayName: Delete & purge APIM, delete resource groups
             inputs:
-              connectedServiceNameARM: sc-krtrun-dev
+              connectedServiceNameARM: ${{ variables.serviceConnection }}
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
