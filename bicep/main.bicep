@@ -45,8 +45,7 @@ module network 'network.bicep' = {
   name: 'network'
   scope: rgApp
   params: {
-    prefix: prefix
-    resourceEnv: resourceEnv
+    base: base
     location: location
     tags: tags
     vnetAddressPrefix: vnetAddressPrefix
@@ -59,10 +58,10 @@ module app 'app.bicep' = {
   name: 'app'
   scope: rgApp
   params: {
-    prefix: prefix
+    base: base
     environment: environment
-    resourceEnv: resourceEnv
     location: location
+    tags: tags
     appServicePlanSku: appServicePlanSku
     appIntegrationSubnetId: network.outputs.appIntegrationSubnetId
     peSubnetId: network.outputs.peSubnetId

@@ -2,11 +2,8 @@
 // Called by main.bicep with scope = the app RG, before app.bicep.
 targetScope = 'resourceGroup'
 
-@description('Resource name prefix')
-param prefix string
-
-@description('Resource name set used in resource names (prefix-resourceEnv-*)')
-param resourceEnv string
+@description('Name base <prefix>-<env>, built once in main.bicep')
+param base string
 
 param location string
 
@@ -24,7 +21,7 @@ param peSubnetPrefix string
 module vnet 'modules/network/vnet.bicep' = {
   name: 'vnet'
   params: {
-    name: '${prefix}-${resourceEnv}-vnet'
+    name: '${base}-vnet'
     location: location
     tags: tags
     addressPrefix: vnetAddressPrefix

@@ -2,23 +2,21 @@
 // Called by main.bicep with scope = the app RG, after network.bicep.
 targetScope = 'resourceGroup'
 
-@description('Resource name prefix')
-@minLength(3)
-param prefix string = 'krtrun'
+@description('Name base <prefix>-<env>, built once in main.bicep')
+param base string
 
-@description('Logical environment -> APP_ENV and tag')
-param environment string = 'dev'
+@description('Logical environment -> APP_ENV')
+param environment string
 
-@description('Resource name set used in resource names (prefix-resourceEnv-*)')
-param resourceEnv string = 'dev'
+param location string
 
-param location string = 'australiaeast'
+param tags object
 
 @description('Static Web Apps region (not offered in australiaeast; eastasia is the closest)')
 param swaLocation string = 'eastasia'
 
 @description('App Service Plan SKU')
-param appServicePlanSku string = 'B1'
+param appServicePlanSku string
 
 @description('Subnet id for App Service VNet integration (from network.bicep)')
 param appIntegrationSubnetId string
@@ -29,13 +27,7 @@ param peSubnetId string
 @description('Private DNS zone ids for blob, queue, table (from network.bicep)')
 param dnsZoneIds array
 
-var base = '${prefix}-${resourceEnv}'
-var tags = {
-  project: 'krtrun'
-  env: environment
-  resourceEnv: resourceEnv
-}
-var storageName = take(toLower(replace('st${prefix}${resourceEnv}${uniqueString(resourceGroup().id)}', '-', '')), 24)
+var storageName = take(toLower(replace('st${base}${uniqueString(resourceGroup().id)}', '-', '')), 24)
 var webAppName = '${base}-web'
 var functionAppName = '${base}-func'
 
