@@ -7,7 +7,7 @@ param location string
 param tags object
 
 @description('App Service plan SKU (B1 or higher)')
-param skuName string = 'B1'
+param skuName string
 
 @description('Subnet id for VNet integration; all outbound traffic is routed through the VNet')
 param integrationSubnetId string

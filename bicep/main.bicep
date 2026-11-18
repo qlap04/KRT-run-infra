@@ -14,7 +14,7 @@ param environment string
 param location string
 
 @description('App Service Plan SKU')
-param appServicePlanSku string = 'B1'
+param appServicePlanSku string
 
 @description('VNet address space')
 param vnetAddressPrefix string
@@ -65,10 +65,6 @@ module app 'app.bicep' = {
   }
 }
 
-output appResourceGroup string = rgApp.name
-output webAppName string = app.outputs.webAppName
 output webAppUrl string = app.outputs.webAppUrl
-output functionAppName string = app.outputs.functionAppName
 output storageAccountName string = app.outputs.storageAccountName
-output swaName string = app.outputs.swaName
 output swaUrl string = 'https://${app.outputs.swaHostname}'

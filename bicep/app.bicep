@@ -1,5 +1,4 @@
 // App stack: storage, private endpoints, web, function and the frontend SWA.
-// Called by main.bicep with scope = the app RG, after network.bicep.
 targetScope = 'resourceGroup'
 
 @description('Name base <prefix>-<env>, built once in main.bicep')
@@ -106,9 +105,6 @@ module rolesFunc 'modules/storage/roles.bicep' = {
   params: { storageAccountName: storage.outputs.name, siteName: functionAppName, principalId: func.outputs.principalId }
 }
 
-output webAppName string = web.outputs.name
 output webAppUrl string = 'https://${web.outputs.defaultHostName}'
-output functionAppName string = func.outputs.name
 output storageAccountName string = storage.outputs.name
-output swaName string = swa.outputs.name
 output swaHostname string = swa.outputs.defaultHostname

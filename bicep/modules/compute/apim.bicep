@@ -9,7 +9,7 @@ param publisherEmail string
 param publisherName string
 
 @description('Browser origins allowed to call the gateway (the frontend on Static Web Apps)')
-param allowedOrigins array = []
+param allowedOrigins array
 
 // Consumption: cheapest (1 million free calls/month) but it CANNOT join a VNet.
 resource apim 'Microsoft.ApiManagement/service@2023-09-01-preview' = {
@@ -27,7 +27,7 @@ resource apim 'Microsoft.ApiManagement/service@2023-09-01-preview' = {
 // different domains, so the browser sends a preflight that APIM must answer.
 var originsXml = join(map(allowedOrigins, o => '<origin>${o}</origin>'), '')
 
-resource globalPolicy 'Microsoft.ApiManagement/service/policies@2023-09-01-preview' = if (!empty(allowedOrigins)) {
+resource globalPolicy 'Microsoft.ApiManagement/service/policies@2023-09-01-preview' = {
   parent: apim
   name: 'policy'
   properties: {
@@ -36,5 +36,4 @@ resource globalPolicy 'Microsoft.ApiManagement/service/policies@2023-09-01-previ
   }
 }
 
-output name string = apim.name
 output gatewayUrl string = apim.properties.gatewayUrl

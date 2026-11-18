@@ -5,8 +5,8 @@ param tags object
 @description('VNet id the private DNS zones are linked to')
 param vnetId string
 
-@description('Storage services that get a zone (order matches the zoneIds output)')
-param services array = [ 'blob', 'queue', 'table' ]
+// Order matches the zoneIds output and the services in storage-private-endpoints.bicep
+var services = [ 'blob', 'queue', 'table' ]
 
 resource zones 'Microsoft.Network/privateDnsZones@2020-06-01' = [for s in services: {
   name: 'privatelink.${s}.${environment().suffixes.storage}'

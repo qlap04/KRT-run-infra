@@ -29,4 +29,3 @@ resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' = {
 // (storage.ensure() with ENSURE_STORAGE=true), not by infra.
 
 output name string = sa.name
-output id string = sa.id

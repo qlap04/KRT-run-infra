@@ -15,7 +15,7 @@ param location string
 
 param publisherEmail string
 
-param publisherName string = 'KRT-run'
+param publisherName string
 
 var base = '${prefix}-${environment}'
 var tags = {
@@ -48,6 +48,4 @@ module apim 'modules/compute/apim.bicep' = {
   }
 }
 
-output apimResourceGroup string = rgApim.name
-output apimName string = apim.outputs.name
 output gatewayUrl string = apim.outputs.gatewayUrl
