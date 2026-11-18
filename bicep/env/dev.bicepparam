@@ -11,12 +11,6 @@ param location = 'australiaeast'
 
 param appServicePlanSku = 'B1'
 
-param deployApim = true
-
-param publisherEmail = 'quoclap030904@gmail.com'
-
-param publisherName = 'KRT-run'
-
 // IP plan (dev)
 param vnetAddressPrefix = '10.20.0.0/16'
 

@@ -1,4 +1,4 @@
-# KRT-run provision (repo: infra)
+# KRT-run provision (repo: infra): network + app stack (main.bicep). APIM: provision-apim.yml
 name: krtrun-provision-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:
@@ -11,6 +11,10 @@ trigger:
     - pipelines/**
     exclude:
     - pipelines/destroy.yml
+    - pipelines/provision-apim.yml
+    - bicep/apim.bicep
+    - bicep/modules/compute/apim.bicep
+    - bicep/env/apim-*.bicepparam
 pr: none
 
 pool:

@@ -1,0 +1,75 @@
+# KRT-run provision APIM (repo: infra): bicep/apim.bicep, run after provision.yml
+name: krtrun-provision-apim-$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+    - develop
+  paths:
+    include:
+    - bicep/apim.bicep
+    - bicep/modules/compute/apim.bicep
+    - bicep/env/apim-*.bicepparam
+    - pipelines/provision-apim.yml
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+# Service connection is written as a literal below: it is resolved at
+# compile time, so a $(variable) does not work there.
+variables:
+- template: variables/common.yml
+- template: variables/dev.yml
+- group: krtrun-dev
+- name: parametersFile
+  value: bicep/env/apim-dev.bicepparam
+- name: templateFile
+  value: bicep/apim.bicep
+
+stages:
+- stage: Plan
+  displayName: Plan (lint, what-if)
+  jobs:
+  - job: Build
+    displayName: Lint and build-params
+    steps:
+    - checkout: self
+    - template: templates/steps/bicep-validate.yml
+      parameters:
+        templateFile: $(templateFile)
+        parametersFile: $(parametersFile)
+
+  - job: WhatIf
+    displayName: What-if
+    dependsOn: Build
+    steps:
+    - checkout: self
+    - template: templates/steps/bicep-whatif.yml
+      parameters:
+        serviceConnection: sc-krtrun-dev
+        subscriptionId: $(subscriptionId)
+        location: $(location)
+        templateFile: $(templateFile)
+        parametersFile: $(parametersFile)
+
+- stage: DeployDev
+  displayName: Provision APIM DEV
+  dependsOn: Plan
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy APIM
+    environment: krtrun-dev
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+          - template: templates/steps/bicep-deploy.yml
+            parameters:
+              deploymentName: $(projectName)-$(environment)-apim-$(Build.BuildId)
+              templateFile: $(templateFile)
+              serviceConnection: sc-krtrun-dev
+              subscriptionId: $(subscriptionId)
+              location: $(location)
+              parametersFile: $(parametersFile)

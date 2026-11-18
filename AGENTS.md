@@ -4,8 +4,8 @@ Stack: Bicep, Azure DevOps YAML. Application code lives in the separate `app` re
 Resources: VNet, App Service Plan + Web App (Node 22), Function App (shares the web B1 plan), Storage account only (the app creates its Blob container `proofs`, Queue and Tables at startup), APIM Consumption with a global CORS policy for the frontend origin, Static Web Apps Free for the React frontend (region `eastasia`; SWA has no australiaeast). No Application Insights (cost).
 
 ## Layout
-- `bicep/main.bicep` (subscription scope: creates `rg-<prefix>-<env>` for the app stack and `rg-<prefix>-<env>-apim` for APIM) + `bicep/app.bicep` (app stack, RG scope) + `bicep/modules/` + `bicep/env/<env>.bicepparam`
-- `pipelines/provision.yml`, `pipelines/destroy.yml` (manual only) + `templates/` + `variables/<env>.yml`
+- `bicep/main.bicep` (subscription scope: creates `rg-<prefix>-<env>`, then calls `network.bicep` and `app.bicep`) + `bicep/apim.bicep` (separate APIM stack in `rg-<prefix>-<env>-apim`, own pipeline `provision-apim.yml`, run after the app stack) + `bicep/modules/` + `bicep/env/<env>.bicepparam`
+- `pipelines/provision.yml` (network + app), `pipelines/provision-apim.yml` (APIM), `pipelines/destroy.yml` (manual only) + `templates/` + `variables/<env>.yml`
 - `docs/SETUP_vi.md` – provisioning, cost and cleanup guide (Vietnamese)
 
 ## Rules

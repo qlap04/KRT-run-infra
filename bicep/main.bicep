@@ -1,6 +1,6 @@
 // Entry point. Subscription scope so Bicep creates the resource groups itself:
 // - rg-<prefix>-<resourceEnv>       network.bicep, then app.bicep
-// - rg-<prefix>-<resourceEnv>-apim  APIM, kept apart (own lifecycle and access)
+// APIM is a separate stack: bicep/apim.bicep with its own pipeline.
 targetScope = 'subscription'
 
 @description('Resource name prefix')
@@ -18,13 +18,6 @@ param location string = 'australiaeast'
 
 @description('App Service Plan SKU')
 param appServicePlanSku string = 'B1'
-
-@description('Create an APIM Consumption instance (in its own resource group)')
-param deployApim bool = true
-
-param publisherEmail string = 'admin@example.com'
-
-param publisherName string = 'KRT-run'
 
 @description('VNet address space')
 param vnetAddressPrefix string
@@ -44,12 +37,6 @@ var tags = {
 
 resource rgApp 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   name: 'rg-${base}'
-  location: location
-  tags: tags
-}
-
-resource rgApim 'Microsoft.Resources/resourceGroups@2024-03-01' = if (deployApim) {
-  name: 'rg-${base}-apim'
   location: location
   tags: tags
 }
@@ -83,25 +70,10 @@ module app 'app.bicep' = {
   }
 }
 
-module apim 'modules/compute/apim.bicep' = if (deployApim) {
-  name: 'apim'
-  scope: rgApim
-  params: {
-    name: '${base}-apim'
-    location: location
-    tags: tags
-    publisherEmail: publisherEmail
-    publisherName: publisherName
-    allowedOrigins: [ 'https://${app.outputs.swaHostname}' ]
-  }
-}
-
 output appResourceGroup string = rgApp.name
-output apimResourceGroup string = deployApim ? rgApim.name : ''
 output webAppName string = app.outputs.webAppName
 output webAppUrl string = app.outputs.webAppUrl
 output functionAppName string = app.outputs.functionAppName
 output storageAccountName string = app.outputs.storageAccountName
 output swaName string = app.outputs.swaName
 output swaUrl string = 'https://${app.outputs.swaHostname}'
-output apimName string = deployApim ? '${base}-apim' : ''
