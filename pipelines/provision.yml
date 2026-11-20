@@ -20,18 +20,20 @@ pr: none
 pool:
   vmImage: ubuntu-latest
 
-# Service connection: per environment, set in variables/<env>.yml and read with
-# ${{ variables.serviceConnection }} (compile time; $(var) does not work there).
+# Shared by all environments. Env-specific variables are loaded per stage.
 variables:
 - template: variables/common.yml
-- template: variables/dev.yml
-- group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group
-- name: parametersFile
-  value: bicep/env/dev.bicepparam
 
 stages:
 - stage: DeployDev
   displayName: Provision DEV
+  # Service connection is set in variables/<env>.yml and read with
+  # ${{ variables.serviceConnection }} (compile time; $(var) does not work there).
+  variables:
+  - template: variables/dev.yml
+  - group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group: subscriptionId
+  - name: parametersFile
+    value: bicep/env/dev.bicepparam
   jobs:
   - deployment: Deploy
     displayName: Lint, what-if and deploy
