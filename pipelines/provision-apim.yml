@@ -16,18 +16,20 @@ pr: none
 pool:
   vmImage: ubuntu-latest
 
+# Shared by all environments. Env-specific variables are loaded per stage.
 variables:
 - template: variables/common.yml
-- template: variables/dev.yml
-- group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group
-- name: parametersFile
-  value: bicep/env/apim-dev.bicepparam
 - name: templateFile
   value: bicep/apim.bicep
 
 stages:
 - stage: DeployDev
   displayName: Provision APIM DEV
+  variables:
+  - template: variables/dev.yml
+  - group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group: subscriptionId
+  - name: parametersFile
+    value: bicep/env/apim-dev.bicepparam
   jobs:
   - deployment: Deploy
     displayName: Lint, what-if and deploy
