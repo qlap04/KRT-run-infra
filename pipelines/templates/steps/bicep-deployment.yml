@@ -21,15 +21,23 @@ parameters:
   type: string
   default: bicep-$(Build.BuildId)
 
+# ADO does not expose secret variables as env vars; map the ones the
+# .bicepparam reads with readEnvironmentVariable() here.
+- name: secretEnv
+  type: object
+  default: {}
+
 steps:
 - script: |
     set -e
     az bicep lint --file ${{ parameters.templateFile }}
     az bicep build-params --file ${{ parameters.parametersFile }} --stdout > /dev/null
   displayName: Bicep lint and build-params
+  env: ${{ parameters.secretEnv }}
 
 - task: BicepDeploy@0
   displayName: Bicep what-if
+  env: ${{ parameters.secretEnv }}
   inputs:
     type: deployment
     operation: whatIf
@@ -42,6 +50,7 @@ steps:
 
 - task: BicepDeploy@0
   displayName: Bicep deploy
+  env: ${{ parameters.secretEnv }}
   inputs:
     type: deployment
     operation: create

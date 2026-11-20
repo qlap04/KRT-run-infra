@@ -47,3 +47,5 @@ stages:
               subscriptionId: $(subscriptionId)
               location: $(location)
               parametersFile: $(parametersFile)
+              secretEnv:
+                GATEWAY_SECRET: $(GATEWAY_SECRET)

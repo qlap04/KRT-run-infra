@@ -12,3 +12,6 @@ param location = readEnvironmentVariable('LOCATION')
 param publisherEmail = 'quoclap030904@gmail.com'
 
 param publisherName = 'KRT-run'
+
+// Secret from the variable group, mapped to env by the pipeline (secretEnv).
+param gatewaySecret = readEnvironmentVariable('GATEWAY_SECRET')

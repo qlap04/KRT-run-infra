@@ -17,6 +17,10 @@ param publisherEmail string
 
 param publisherName string
 
+@secure()
+@description('Shared secret APIM sends to the Web App (X-Gateway-Secret)')
+param gatewaySecret string
+
 var base = '${prefix}-${environment}'
 var tags = {
   project: 'krtrun'
@@ -45,6 +49,7 @@ module apim 'modules/compute/apim.bicep' = {
     publisherEmail: publisherEmail
     publisherName: publisherName
     allowedOrigins: [ 'https://${swa.properties.defaultHostname}' ]
+    gatewaySecret: gatewaySecret
   }
 }
 
