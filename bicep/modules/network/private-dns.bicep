@@ -1,20 +1,19 @@
 // Private DNS zones for the storage private endpoints, linked to the VNet.
 // privatelink.<service>.core.windows.net: makes <account>.<service>.core.windows.net resolve to the private IP inside the VNet
+import { storageServices, dnsZoneName } from '../naming.bicep'
+
 param tags object
 
 @description('VNet id the private DNS zones are linked to')
 param vnetId string
 
-// Order matches the zoneIds output and the services in storage-private-endpoints.bicep
-var services = [ 'blob', 'queue', 'table' ]
-
-resource zones 'Microsoft.Network/privateDnsZones@2020-06-01' = [for s in services: {
-  name: 'privatelink.${s}.${environment().suffixes.storage}'
+resource zones 'Microsoft.Network/privateDnsZones@2020-06-01' = [for s in storageServices: {
+  name: dnsZoneName(s)
   location: 'global'
   tags: tags
 }]
 
-resource links 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = [for (s, i) in services: {
+resource links 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = [for (s, i) in storageServices: {
   parent: zones[i]
   name: 'link-vnet'
   location: 'global'
@@ -25,5 +24,3 @@ resource links 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01
     registrationEnabled: false
   }
 }]
-
-output zoneIds array = [for (s, i) in services: zones[i].id]

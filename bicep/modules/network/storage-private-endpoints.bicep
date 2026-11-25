@@ -1,22 +1,22 @@
+import { storageServices } from '../naming.bicep'
+
 param location string
 
 param tags object
 
 param storageAccountName string
 
-@description('Private DNS zone ids, same order as services (from network.bicep)')
+@description('Private DNS zone ids, same order as storageServices (naming.bicep)')
 param dnsZoneIds array
 
 @description('Subnet id that hosts the private endpoints (snet-pe)')
 param peSubnetId string
 
-var services = [ 'blob', 'queue', 'table' ]
-
 resource sa 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageAccountName
 }
 
-resource pes 'Microsoft.Network/privateEndpoints@2023-11-01' = [for s in services: {
+resource pes 'Microsoft.Network/privateEndpoints@2023-11-01' = [for s in storageServices: {
   name: 'pe-${storageAccountName}-${s}'
   location: location
   tags: tags
@@ -34,7 +34,7 @@ resource pes 'Microsoft.Network/privateEndpoints@2023-11-01' = [for s in service
   }
 }]
 
-resource zoneGroups 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = [for (s, i) in services: {
+resource zoneGroups 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = [for (s, i) in storageServices: {
   parent: pes[i]
   name: 'default'
   properties: {

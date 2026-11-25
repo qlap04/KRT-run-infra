@@ -1,4 +1,4 @@
-# Step template: lint + build-params, what-if, then deploy (subscription scope).
+# Step template: lint, what-if, then deploy (subscription scope).
 # Use it only inside a deployment job that has the environment approval gate.
 parameters:
 - name: serviceConnection
@@ -12,32 +12,24 @@ parameters:
 
 - name: templateFile
   type: string
-  default: bicep/main.bicep
-
-- name: parametersFile
-  type: string
 
 - name: deploymentName
   type: string
   default: bicep-$(Build.BuildId)
 
-# ADO does not expose secret variables as env vars; map the ones the
-# .bicepparam reads with readEnvironmentVariable() here.
-- name: secretEnv
+# Bicep parameters as an object, e.g. { prefix: $(projectName), gatewaySecret: $(GATEWAY_SECRET) }.
+# A secret variable passed as $(NAME) is masked in the logs.
+- name: parameters
   type: object
   default: {}
 
 steps:
-- script: |
-    set -e
-    az bicep lint --file ${{ parameters.templateFile }}
-    az bicep build-params --file ${{ parameters.parametersFile }} --stdout > /dev/null
-  displayName: Bicep lint and build-params
-  env: ${{ parameters.secretEnv }}
+# Lint has no built-in task: the Bicep CLI on the agent is the only option.
+- script: az bicep lint --file ${{ parameters.templateFile }}
+  displayName: Bicep lint
 
 - task: BicepDeploy@0
   displayName: Bicep what-if
-  env: ${{ parameters.secretEnv }}
   inputs:
     type: deployment
     operation: whatIf
@@ -46,11 +38,10 @@ steps:
     subscriptionId: ${{ parameters.subscriptionId }}
     location: ${{ parameters.location }}
     templateFile: ${{ parameters.templateFile }}
-    parametersFile: ${{ parameters.parametersFile }}
+    parameters: ${{ convertToJson(parameters.parameters) }}
 
 - task: BicepDeploy@0
   displayName: Bicep deploy
-  env: ${{ parameters.secretEnv }}
   inputs:
     type: deployment
     operation: create
@@ -60,4 +51,4 @@ steps:
     subscriptionId: ${{ parameters.subscriptionId }}
     location: ${{ parameters.location }}
     templateFile: ${{ parameters.templateFile }}
-    parametersFile: ${{ parameters.parametersFile }}
+    parameters: ${{ convertToJson(parameters.parameters) }}

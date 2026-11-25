@@ -1,0 +1,53 @@
+# KRT-run provision network (repo: infra): bicep/stacks/10-network, run first (then provision.yml, provision-apim.yml)
+name: krtrun-provision-network-$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+    - develop
+  paths:
+    include:
+    - bicep/stacks/10-network/**
+    - bicep/modules/**
+    - pipelines/provision-network.yml
+    - pipelines/templates/**
+    - pipelines/variables/**
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+# Shared by all environments. Env-specific variables are loaded per stage.
+variables:
+- template: variables/common.yml
+- name: templateFile
+  value: bicep/stacks/10-network/main.bicep
+
+stages:
+- stage: DeployDev
+  displayName: Provision network DEV
+  # Service connection is set in variables/<env>.yml and read with
+  # ${{ variables.serviceConnection }} (compile time; $(var) does not work there).
+  variables:
+  - template: variables/dev.yml
+  - group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group: subscriptionId
+  jobs:
+  - deployment: Deploy
+    displayName: Lint, what-if and deploy
+    environment: ${{ variables.projectName }}-${{ variables.environment }}   # per-env approval gate
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+          - template: templates/steps/bicep-deployment.yml
+            parameters:
+              deploymentName: $(projectName)-$(environment)-network-$(Build.BuildId)
+              templateFile: $(templateFile)
+              serviceConnection: ${{ variables.serviceConnection }}
+              subscriptionId: $(subscriptionId)
+              location: $(location)
+              parameters:
+                prefix: $(projectName)
+                environment: $(environment)
+                location: $(location)

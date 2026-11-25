@@ -1,4 +1,4 @@
-# KRT-run provision APIM (repo: infra): bicep/apim.bicep, run after provision.yml
+# KRT-run provision APIM (repo: infra): bicep/stacks/40-apim, run after provision-network.yml and provision.yml
 name: krtrun-provision-apim-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:
@@ -7,10 +7,11 @@ trigger:
     - develop
   paths:
     include:
-    - bicep/apim.bicep
-    - bicep/modules/compute/apim.bicep
-    - bicep/env/apim-*.bicepparam
+    - bicep/stacks/40-apim/**
+    - bicep/modules/**
     - pipelines/provision-apim.yml
+    - pipelines/templates/**
+    - pipelines/variables/**
 pr: none
 
 pool:
@@ -20,16 +21,14 @@ pool:
 variables:
 - template: variables/common.yml
 - name: templateFile
-  value: bicep/apim.bicep
+  value: bicep/stacks/40-apim/main.bicep
 
 stages:
 - stage: DeployDev
   displayName: Provision APIM DEV
   variables:
   - template: variables/dev.yml
-  - group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group: subscriptionId
-  - name: parametersFile
-    value: bicep/env/apim-dev.bicepparam
+  - group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group: subscriptionId, GATEWAY_SECRET
   jobs:
   - deployment: Deploy
     displayName: Lint, what-if and deploy
@@ -46,6 +45,11 @@ stages:
               serviceConnection: ${{ variables.serviceConnection }}
               subscriptionId: $(subscriptionId)
               location: $(location)
-              parametersFile: $(parametersFile)
-              secretEnv:
-                GATEWAY_SECRET: $(GATEWAY_SECRET)
+              parameters:
+                prefix: $(projectName)
+                environment: $(environment)
+                location: $(location)
+                publisherEmail: $(publisherEmail)
+                publisherName: $(publisherName)
+                # Secret variable from the group: masked in the logs, never echoed
+                gatewaySecret: $(GATEWAY_SECRET)

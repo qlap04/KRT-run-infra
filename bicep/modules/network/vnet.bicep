@@ -1,3 +1,5 @@
+import { appSubnetName, peSubnetName } from '../naming.bicep'
+
 @description('VNet name')
 param name string
 
@@ -22,7 +24,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
     addressSpace: { addressPrefixes: [ addressPrefix ] }
     subnets: [
       {
-        name: 'snet-app-integration'
+        name: appSubnetName()
         properties: {
           addressPrefix: appSubnetPrefix
           delegations: [
@@ -34,7 +36,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
         }
       }
       {
-        name: 'snet-pe'
+        name: peSubnetName()
         properties: { addressPrefix: peSubnetPrefix }
       }
     ]
@@ -42,5 +44,3 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
 }
 
 output vnetId string = vnet.id
-output appIntegrationSubnetId string = '${vnet.id}/subnets/snet-app-integration'
-output peSubnetId string = '${vnet.id}/subnets/snet-pe'

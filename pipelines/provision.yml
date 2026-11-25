@@ -1,4 +1,4 @@
-# KRT-run provision (repo: infra): network + app stack (main.bicep). APIM: provision-apim.yml
+# KRT-run provision (repo: infra): app stack (bicep/stacks/30-app). Order: provision-network.yml, this, provision-apim.yml
 name: krtrun-provision-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:
@@ -7,14 +7,11 @@ trigger:
     - develop
   paths:
     include:
-    - bicep/**
-    - pipelines/**
-    exclude:
-    - pipelines/destroy.yml
-    - pipelines/provision-apim.yml
-    - bicep/apim.bicep
-    - bicep/modules/compute/apim.bicep
-    - bicep/env/apim-*.bicepparam
+    - bicep/stacks/30-app/**
+    - bicep/modules/**
+    - pipelines/provision.yml
+    - pipelines/templates/**
+    - pipelines/variables/**
 pr: none
 
 pool:
@@ -23,6 +20,8 @@ pool:
 # Shared by all environments. Env-specific variables are loaded per stage.
 variables:
 - template: variables/common.yml
+- name: templateFile
+  value: bicep/stacks/30-app/main.bicep
 
 stages:
 - stage: DeployDev
@@ -32,8 +31,6 @@ stages:
   variables:
   - template: variables/dev.yml
   - group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group: subscriptionId
-  - name: parametersFile
-    value: bicep/env/dev.bicepparam
   jobs:
   - deployment: Deploy
     displayName: Lint, what-if and deploy
@@ -45,8 +42,12 @@ stages:
           - checkout: self
           - template: templates/steps/bicep-deployment.yml
             parameters:
-              deploymentName: $(projectName)-$(environment)-$(Build.BuildId)
+              deploymentName: $(projectName)-$(environment)-app-$(Build.BuildId)
+              templateFile: $(templateFile)
               serviceConnection: ${{ variables.serviceConnection }}
               subscriptionId: $(subscriptionId)
               location: $(location)
-              parametersFile: $(parametersFile)
+              parameters:
+                prefix: $(projectName)
+                environment: $(environment)
+                location: $(location)

@@ -7,21 +7,24 @@ infra/
 ├── AGENTS.md
 ├── .cursor/rules/bicep.mdc
 ├── bicep/
-│   ├── main.bicep   (scope subscription: tạo 2 RG, gọi app.bicep + APIM)
-│   ├── app.bicep    (scope RG: network, storage, web, function, static web app)
-│   ├── modules/
-│   │   ├── network/       # vnet, storage-private-endpoints (PE + Private DNS)
-│   │   ├── compute/       # web, function, apim, static-web-app
-│   │   └── storage/       # storage-account, roles (RBAC trên storage)
-│   └── env/               # dev.bicepparam (thêm <env>.bicepparam khi mở rộng)
-├── pipelines/             # provision.yml, destroy.yml, templates/, variables/<env>.yml
+│   ├── stacks/            # mỗi thư mục = một lần deploy (scope subscription) = một pipeline; số = thứ tự deploy
+│   │   ├── 10-network/    # main.bicep: RG, VNet, subnet, Private DNS zone (provision-network.yml)
+│   │   ├── 30-app/        # main.bicep + app.bicep: storage, PE, web, function, SWA (provision.yml)
+│   │   └── 40-apim/       # main.bicep (provision-apim.yml)
+│   └── modules/           # module dùng chung của các stack
+│       ├── naming.bicep   # tên và id dùng chung (import, không deploy)
+│       ├── network/       # vnet, private-dns, storage-private-endpoints
+│       ├── compute/       # web, function, apim, static-web-app
+│       └── storage/       # storage-account, roles (RBAC trên storage)
+├── pipelines/             # provision-network.yml, provision.yml, provision-apim.yml, destroy.yml, templates/, variables/<env>.yml
 └── docs/SETUP_vi.md
 ```
 
 Kiểm tra cú pháp (không deploy):
 ```bash
-az bicep lint --file bicep/main.bicep
-az bicep build-params --file bicep/env/dev.bicepparam --stdout > /dev/null
+az bicep lint --file bicep/stacks/10-network/main.bicep
+az bicep lint --file bicep/stacks/30-app/main.bicep
+az bicep lint --file bicep/stacks/40-apim/main.bicep
 ```
 
 ### Biến môi trường mà Bicep ghi vào app settings
@@ -42,7 +45,7 @@ flowchart LR
   A["Nhánh Git develop"] --> B["Stage DeployDev<br/>environment = dev"]
   B --> C["pipelines/variables/dev.yml<br/>(+ common.yml)<br/>RG, location, sku, tên app"]
   B --> G["Variable group krtrun-dev<br/>subscriptionId"]
-  C --> D["Task BicepDeploy@0<br/>parametersFile: bicep/env/dev.bicepparam"]
+  C --> D["Task BicepDeploy@0<br/>templateFile: bicep/stacks/*/main.bicep<br/>parameters: projectName, environment, location"]
   G --> D
   D --> E["Bicep: app settings<br/>APP_ENV, STORAGE_ACCOUNT_NAME, ..."]
   E --> F["Web App / Function App<br/>process.env.APP_ENV ..."]
@@ -52,7 +55,7 @@ Giải thích dễ hiểu (giống việc **gọi món ăn**):
 1. **Nhánh Git** là "bàn nào gọi món". Hiện chỉ có nhánh `develop`, pipeline chờ approve rồi lint, what-if và deploy **DEV**.
 2. Stage DeployDev **tự nạp file `pipelines/variables/dev.yml`** (tên resource group, region, SKU, tên web app...) và phần dùng chung ở `common.yml`.
 3. **Infra không biết gì về secret của app.** `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` là cấu hình nghiệp vụ, nên pipeline `app-deploy` (repo `app`) gắn chúng vào app settings của Web App. Lưu ý: Bicep ghi lại **toàn bộ** app settings mỗi lần provision, nên sau mỗi lần provision phải chạy lại `app-deploy` để gắn lại secret.
-4. Pipeline dùng task có sẵn `BicepDeploy@0` (what-if rồi deploy, cùng một job sau approval) với file `bicep/env/dev.bicepparam`; mọi giá trị tham số nằm trong file này. File `pipelines/variables/dev.yml` chỉ giữ tên resource group, region, tên web app... để pipeline dùng, nên phải khớp với bicepparam.
+4. Pipeline dùng task có sẵn `BicepDeploy@0` (what-if rồi deploy, cùng một job sau approval). Không có file `.bicepparam`: pipeline truyền tham số cho Bicep dạng inline (`parameters`), lấy từ `pipelines/variables/common.yml` và `dev.yml` (`prefix` = `projectName`, `environment`, `location`, APIM thêm `publisherEmail`, `publisherName`). Tham số còn lại (SKU, dải IP) có giá trị mặc định ngay trong `main.bicep` của từng stack. Secret `GATEWAY_SECRET` lấy từ variable group và được truyền dạng biến secret (log che thành `***`).
 5. Bicep ghi các giá trị đó vào **app settings** của Web App và Function App.
 6. Khi chạy, Azure đưa app settings vào **`process.env`**, và `config.js` đọc ra.
 
@@ -71,9 +74,9 @@ flowchart TD
 |---|---|---|
 | `develop` | **DEV** (lint → what-if → deploy) | Environment `krtrun-dev` |
 
-Hiện chỉ môi trường **dev** đang dùng. Pipeline `pipelines/provision.yml` của repo này theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Chỉ có một stage **DeployDev**: chờ approve trên Environment `krtrun-dev`, rồi chạy lint, build-params, what-if và deploy liền nhau. What-if giờ chạy **sau** approve, nên chỉ để đọc lại trong log: muốn xem trước khi approve thì chạy what-if trên máy (`az deployment sub what-if`).
+Hiện chỉ môi trường **dev** đang dùng. Hạ tầng chia thành 3 stack, mỗi stack một pipeline, deploy theo thứ tự **network → app → apim** (stack sau cần stack trước đã tồn tại): `provision-network.yml`, `provision.yml` (app), `provision-apim.yml`. Mỗi pipeline chỉ trigger khi đổi thư mục stack của mình, `bicep/modules/**`, `pipelines/templates/**` hoặc `pipelines/variables/**`. Pipeline theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Chỉ có một stage **DeployDev**: chờ approve trên Environment `krtrun-dev`, rồi chạy lint, what-if và deploy liền nhau. What-if giờ chạy **sau** approve, nên chỉ để đọc lại trong log: muốn xem trước khi approve thì chạy what-if trên máy (`az deployment sub what-if`).
 
-Stage và job được khai báo ngay trong `provision.yml` / `provision-apim.yml`. Phần làm việc thật nằm ở **một step template** `pipelines/templates/steps/bicep-deployment.yml`, gồm 3 task: lint + build-params, what-if, deploy (scope subscription, Bicep tự tạo RG, cần `location`). Gộp một file để team khác chỉ gọi một template, không phải tự ghép từng bước. Chỉ gọi nó trong deployment job có approval gate.
+Stage và job được khai báo ngay trong `provision-network.yml` / `provision.yml` / `provision-apim.yml`. Phần làm việc thật nằm ở **một step template** `pipelines/templates/steps/bicep-deployment.yml`, gồm 3 task: lint (Bicep CLI, vì chưa có task có sẵn để lint), what-if, deploy (scope subscription, Bicep tự tạo RG, cần `location`). Gộp một file để team khác chỉ gọi một template, không phải tự ghép từng bước. Chỉ gọi nó trong deployment job có approval gate.
 
 Resource group do Bicep tạo: `rg-krtrun-dev` (app) và `rg-krtrun-dev-apim` (APIM, tách riêng vì vòng đời và quyền khác app).
 
@@ -95,14 +98,17 @@ resources:
     serviceConnection: sc-krtrun-dev
     subscriptionId: $(subscriptionId)
     location: australiaeast
-    templateFile: KRT-run-infra/bicep/main.bicep
-    parametersFile: KRT-run-infra/bicep/env/dev.bicepparam
+    templateFile: KRT-run-infra/bicep/stacks/30-app/main.bicep
+    parameters:
+      prefix: krtrun
+      environment: dev
+      location: australiaeast
 ```
 Approval **không** nằm trong YAML: bạn vào Azure DevOps → Pipelines → Environments → `krtrun-dev` → Approvals and checks, rồi bật Approvals.
 
 Nhánh tính năng (`feature/<tên>`) cắt từ `develop` và merge lại bằng pull request.
 
-> **Sau này muốn thêm môi trường:** thêm file `pipelines/variables/<env>.yml` và `bicep/env/<env>.bicepparam`, thêm một stage trong pipeline, rồi tạo Environment và variable group tương ứng trên Azure DevOps.
+> **Sau này muốn thêm môi trường:** thêm file `pipelines/variables/<env>.yml`, thêm một stage trong pipeline, rồi tạo Environment và variable group tương ứng trên Azure DevOps.
 
 ---
 
@@ -110,12 +116,12 @@ Nhánh tính năng (`feature/<tên>`) cắt từ `develop` và merge lại bằn
 
 Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-run-infra](https://github.com/qlap04/KRT-run-infra). Không cần tạo repo Azure Repos hay push lại.
 
-1. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): tạo `sc-krtrun-dev`. Tên phải khớp `serviceConnection` trong `pipelines/variables/dev.yml` (cả 3 pipeline đều đọc từ đây). Có thể dùng chung với repo `app` nếu cùng project. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và tạo resource group. Service connection phải có quyền ở **mức subscription** (không giới hạn trong 1 RG), vì deploy chạy ở scope subscription.
+1. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): tạo `sc-krtrun-dev`. Tên phải khớp `serviceConnection` trong `pipelines/variables/dev.yml` (cả 4 pipeline đều đọc từ đây). Có thể dùng chung với repo `app` nếu cùng project. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và tạo resource group. Service connection phải có quyền ở **mức subscription** (không giới hạn trong 1 RG), vì deploy chạy ở scope subscription.
 2. **Environments**: chỉ cần `krtrun-dev`; vào Approvals and checks rồi **bật Approvals** (pipeline provision và destroy đều chờ duyệt ở đây).
-3. **Variable groups** (Pipelines → Library): chỉ cần `krtrun-dev`. Tên group và tên Environment không viết cứng trong YAML mà ghép từ `<projectName>-<environment>` (`${{ variables.projectName }}-${{ variables.environment }}`), nên mỗi môi trường có group và approval riêng; thêm prod chỉ cần `variables/prod.yml` cùng group/Environment `krtrun-prod`. Pipeline infra chỉ cần biến thường `subscriptionId` (Subscription ID của Azure, dạng GUID). 3 biến secret `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` cũng để trong group này nhưng chỉ pipeline `app-deploy` dùng (xem repo `app`).
-4. **Tạo pipeline** (Pipelines → New pipeline → chọn **GitHub (YAML)** → chọn repo `qlap04/KRT-run-infra` → *Existing Azure Pipelines YAML file*): `krtrun-provision` → `/pipelines/provision.yml`. Lần đầu Azure DevOps sẽ xin quyền truy cập GitHub.
-5. **Đổi giá trị thật**: `publisherEmail` trong `bicep/env/apim-dev.bicepparam`; `prefix` nếu tên `krtrun-dev-web` bị trùng toàn cầu (đổi `projectName` ở `pipelines/variables/common.yml` **và** `pipelines/variables/dev.yml` của repo `app`). `prefix`, `environment`, `location` không khai báo lại trong `.bicepparam` nữa: file param đọc biến pipeline bằng `readEnvironmentVariable`. Chạy thử trên máy thì set biến trước, ví dụ `PROJECTNAME=krtrun ENVIRONMENT=dev LOCATION=australiaeast az bicep build-params --file bicep/env/dev.bicepparam --stdout`.
-6. **Chạy**: đẩy hoặc merge vào `develop` → (approve trên `krtrun-dev`) → lint, what-if, deploy DEV. APIM chạy riêng bằng `provision-apim.yml`, sau stack app. Sau đó **luôn** chạy `app-deploy` ở repo `app` (nó gắn lại secret).
+3. **Variable groups** (Pipelines → Library): chỉ cần `krtrun-dev`. Tên group và tên Environment không viết cứng trong YAML mà ghép từ `<projectName>-<environment>` (`${{ variables.projectName }}-${{ variables.environment }}`), nên mỗi môi trường có group và approval riêng; thêm prod chỉ cần `variables/prod.yml` cùng group/Environment `krtrun-prod`. Pipeline infra cần biến thường `subscriptionId` (Subscription ID của Azure, dạng GUID) và biến secret `GATEWAY_SECRET` (chỉ pipeline APIM dùng; nên chỉ gồm chữ và số vì giá trị được ghép vào JSON). 3 biến secret `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` cũng để trong group này nhưng chỉ pipeline `app-deploy` dùng (xem repo `app`).
+4. **Tạo pipeline** (Pipelines → New pipeline → chọn **GitHub (YAML)** → chọn repo `qlap04/KRT-run-infra` → *Existing Azure Pipelines YAML file*): `krtrun-provision-network` → `/pipelines/provision-network.yml`, `krtrun-provision` → `/pipelines/provision.yml`, `krtrun-provision-apim` → `/pipelines/provision-apim.yml`. Lần đầu Azure DevOps sẽ xin quyền truy cập GitHub. Pipeline `krtrun-provision-network` phải tạo tay trên ADO; hai pipeline còn lại giữ nguyên đường dẫn YAML.
+5. **Đổi giá trị thật**: `publisherEmail` trong `pipelines/variables/common.yml`; `prefix` nếu tên `krtrun-dev-web` bị trùng toàn cầu (đổi `projectName` ở `pipelines/variables/common.yml` **và** `pipelines/variables/dev.yml` của repo `app`). Chạy thử trên máy chỉ cần lint và build, ví dụ `az bicep build --file bicep/stacks/30-app/main.bicep --stdout > /dev/null`.
+6. **Chạy**: đẩy hoặc merge vào `develop` → (approve trên `krtrun-dev`) → lint, what-if, deploy DEV. Lần dựng đầu chạy tay theo thứ tự `krtrun-provision-network` → `krtrun-provision` → `krtrun-provision-apim`. Sau đó **luôn** chạy `app-deploy` ở repo `app` (nó gắn lại secret).
 
 Đọc kết quả what-if trước khi bấm Approve.
 
@@ -137,7 +143,7 @@ Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-r
 
 Hiện chỉ dựng bộ **dev**, dùng gói **B1**. Giá B1 khoảng 0,019 USD/giờ, tức khoảng 0,15 USD (~4k đồng) cho 8 giờ. Một tháng 22 ngày làm việc khoảng 3,3 USD (~87k đồng). **Điều kiện: dùng xong là chạy pipeline destroy ngay.** Nếu để chạy 24/7 thì B1 tốn khoảng 13 USD/tháng (~330k), vượt 200k.
 
-Gói chỉ được chọn B1, B2 hoặc B3 (tham số `appServicePlanSku` trong `bicep/env/dev.bicepparam`). Gói miễn phí không hỗ trợ VNet và không chạy được Function App nên không còn dùng.
+Gói chỉ được chọn B1, B2 hoặc B3 (tham số `appServicePlanSku` trong `bicep/stacks/30-app/main.bicep`, mặc định B1). Gói miễn phí không hỗ trợ VNet và không chạy được Function App nên không còn dùng.
 
 ## 5. Dọn dẹp (tránh tốn tiền)
 
@@ -167,7 +173,7 @@ Bicep luôn bật các thứ sau:
 - Storage **tắt hẳn public access** (`publicNetworkAccess: Disabled`). Chỉ đi vào được qua private endpoint.
 - Function dùng chung gói B1 nên có Always On, không tốn thêm tiền.
 
-Bảng IP của mỗi môi trường chỉ nằm trong `bicep/env/<env>.bicepparam` (`vnetAddressPrefix`, `appSubnetPrefix`, `peSubnetPrefix`). Không hardcode IP trong module. Mỗi môi trường nên dùng một dải riêng (vd dev `10.20.0.0/16`, sau này prod `10.30.0.0/16`) để sau này peering VNet không bị trùng.
+Bảng IP của mỗi môi trường chỉ nằm trong `bicep/stacks/10-network/main.bicep` (`vnetAddressPrefix`, `appSubnetPrefix`, `peSubnetPrefix`, giá trị mặc định). Không hardcode IP trong module. Mỗi môi trường nên dùng một dải riêng (vd dev `10.20.0.0/16`, sau này prod `10.30.0.0/16`) để sau này peering VNet không bị trùng. Stack app không tra cứu network mà tự dựng id subnet và Private DNS zone từ `bicep/modules/naming.bicep`, cùng nguồn tên với stack network, nên network phải được deploy trước.
 
 ```mermaid
 flowchart LR
@@ -193,7 +199,7 @@ Cần biết:
 - **Không xem được dữ liệu storage từ laptop.** Public access đã tắt, nên Storage browser trên portal hoặc Azure Storage Explorer sẽ báo lỗi 403. Muốn xem thì tạm bật: Storage account → **Networking** → **Public network access** = *Enabled from selected virtual networks and IP addresses* rồi thêm IP của bạn. Xem xong thì tắt lại. Lần deploy Bicep tiếp theo cũng tự tắt lại. Container, queue, table **không** do infra tạo: app tự tạo lúc khởi động (`storage.ensure()` khi `ENSURE_STORAGE=true`), đi qua private endpoint và dùng quyền Data Contributor của managed identity.
 - Function vẫn kết nối storage bằng key, vì quyền gán role của pipeline chỉ cho 3 role Contributor (Blob, Queue, Table). Key này nằm trong app setting, không bị output ra ngoài. Traffic của Function tới storage đi qua private endpoint nhờ route all và Private DNS.
 - **APIM Consumption không nối vào VNet được.** Muốn APIM vào VNet phải dùng Developer (~50 USD) hoặc Standard v2, đều vượt 200k. Vì vậy APIM vẫn public và gọi web bằng API key.
-- **Frontend nằm trên Static Web Apps Free**, gọi thẳng APIM (SWA Free không link backend được; tính năng đó cần Standard ~9 USD/tháng). Vì frontend và APIM khác domain, `apim.bicep` đặt policy CORS toàn cục chỉ cho phép origin của SWA (lấy từ output của module SWA).
+- **Frontend nằm trên Static Web Apps Free**, gọi thẳng APIM (SWA Free không link backend được; tính năng đó cần Standard ~9 USD/tháng). Vì frontend và APIM khác domain, `bicep/stacks/40-apim` đặt policy CORS toàn cục chỉ cho phép origin của SWA (lấy từ output của module SWA).
 - Infra chỉ tạo SWA và CORS. Import API, policy `set-header` cho `API_KEY` và deploy frontend (bằng deployment token của SWA) là việc của pipeline app.
 
 ## 7. Giới hạn hiện tại (nên biết)
@@ -209,7 +215,7 @@ Cần biết:
 | Từ | Nghĩa |
 |---|---|
 | Bicep | Ngôn ngữ viết hạ tầng Azure bằng code (dễ đọc hơn JSON ARM) |
-| `.bicepparam` | File chứa giá trị tham số cho Bicep, mỗi môi trường một file |
+| Stack | Thư mục `bicep/stacks/<tên>` = một lần deploy = một pipeline; các stack chia sẻ module trong `bicep/modules/` |
 | Managed identity | "Căn cước" tự động của app để truy cập Azure mà không cần mật khẩu |
 | Audit log | Nhật ký ghi lại ai làm gì, chỉ thêm, không sửa |
 | What-if | Xem trước Azure sẽ thay đổi gì mà chưa thật sự deploy |

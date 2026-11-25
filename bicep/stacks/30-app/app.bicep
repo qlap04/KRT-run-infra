@@ -1,4 +1,4 @@
-// App stack: storage, private endpoints, web, function and the frontend SWA.
+// App stack (called by main.bicep): storage, private endpoints, web, function and the frontend SWA.
 targetScope = 'resourceGroup'
 
 @description('Name base <prefix>-<env>, built once in main.bicep')
@@ -17,20 +17,20 @@ param swaLocation string = 'eastasia'
 @description('App Service Plan SKU')
 param appServicePlanSku string
 
-@description('Subnet id for App Service VNet integration (from network.bicep)')
+@description('Subnet id for App Service VNet integration (from the network stack)')
 param appIntegrationSubnetId string
 
-@description('Subnet id for the storage private endpoints (from network.bicep)')
+@description('Subnet id for the storage private endpoints (from the network stack)')
 param peSubnetId string
 
-@description('Private DNS zone ids for blob, queue, table (from network.bicep)')
+@description('Private DNS zone ids for blob, queue, table (from the network stack)')
 param dnsZoneIds array
 
 var storageName = take(toLower(replace('st${base}${uniqueString(resourceGroup().id)}', '-', '')), 24)
 var webAppName = '${base}-web'
 var functionAppName = '${base}-func'
 
-module storage 'modules/storage/storage-account.bicep' = {
+module storage '../../modules/storage/storage-account.bicep' = {
   name: 'storage'
   params: {
     name: storageName
@@ -39,7 +39,7 @@ module storage 'modules/storage/storage-account.bicep' = {
   }
 }
 
-module storagePe 'modules/network/storage-private-endpoints.bicep' = {
+module storagePe '../../modules/network/storage-private-endpoints.bicep' = {
   name: 'storage-pe'
   params: {
     location: location
@@ -56,7 +56,7 @@ var sharedSettings = {
 }
 
 // dependsOn storagePe: the private endpoints and DNS must exist before the apps start talking to storage
-module web 'modules/compute/web.bicep' = {
+module web '../../modules/compute/web.bicep' = {
   name: 'web'
   dependsOn: [ storagePe ]
   params: {
@@ -71,7 +71,7 @@ module web 'modules/compute/web.bicep' = {
   }
 }
 
-module func 'modules/compute/function.bicep' = {
+module func '../../modules/compute/function.bicep' = {
   name: 'function'
   dependsOn: [ storagePe ]
   params: {
@@ -86,7 +86,7 @@ module func 'modules/compute/function.bicep' = {
   }
 }
 
-module swa 'modules/compute/static-web-app.bicep' = {
+module swa '../../modules/compute/static-web-app.bicep' = {
   name: 'swa'
   params: {
     name: '${base}-swa'
@@ -95,12 +95,12 @@ module swa 'modules/compute/static-web-app.bicep' = {
   }
 }
 
-module rolesWeb 'modules/storage/roles.bicep' = {
+module rolesWeb '../../modules/storage/roles.bicep' = {
   name: 'roles-web'
   params: { storageAccountName: storage.outputs.name, siteName: webAppName, principalId: web.outputs.principalId }
 }
 
-module rolesFunc 'modules/storage/roles.bicep' = {
+module rolesFunc '../../modules/storage/roles.bicep' = {
   name: 'roles-func'
   params: { storageAccountName: storage.outputs.name, siteName: functionAppName, principalId: func.outputs.principalId }
 }
