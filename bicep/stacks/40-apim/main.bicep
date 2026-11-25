@@ -1,6 +1,6 @@
 // APIM stack, deployed by its own pipeline (provision-apim.yml). Run last.
 // Subscription scope: creates rg-<prefix>-<environment>-apim and the APIM in it.
-// Run after the app stack: CORS reads the frontend hostname from the existing SWA.
+// Independent of the other stacks: the CORS origins come in as a parameter.
 targetScope = 'subscription'
 
 @description('Resource name prefix')
@@ -16,6 +16,9 @@ param location string
 param publisherEmail string
 
 param publisherName string
+
+@description('Browser origins allowed by the CORS policy (the frontend URLs)')
+param allowedOrigins array
 
 @secure()
 @description('Shared secret APIM sends to the Web App (X-Gateway-Secret)')
@@ -33,12 +36,6 @@ resource rgApim 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   tags: tags
 }
 
-// Created by the app stack (stacks/30-app) in the app RG.
-resource swa 'Microsoft.Web/staticSites@2023-12-01' existing = {
-  name: '${base}-swa'
-  scope: resourceGroup('rg-${base}')
-}
-
 module apim '../../modules/compute/apim.bicep' = {
   name: 'apim'
   scope: rgApim
@@ -48,7 +45,7 @@ module apim '../../modules/compute/apim.bicep' = {
     tags: tags
     publisherEmail: publisherEmail
     publisherName: publisherName
-    allowedOrigins: [ 'https://${swa.properties.defaultHostname}' ]
+    allowedOrigins: allowedOrigins
     gatewaySecret: gatewaySecret
   }
 }

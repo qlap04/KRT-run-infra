@@ -1,4 +1,4 @@
-# KRT-run provision APIM (repo: infra): bicep/stacks/40-apim, run after provision-network.yml, provision-data.yml and provision.yml
+# KRT-run provision APIM (repo: infra): bicep/stacks/40-apim. No dependency on other stacks; CORS origins come from variables/<env>.yml
 name: krtrun-provision-apim-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:
@@ -51,5 +51,7 @@ stages:
                 location: $(location)
                 publisherEmail: $(publisherEmail)
                 publisherName: $(publisherName)
+                # Compile time: the comma-separated variable becomes the array the Bicep param expects
+                allowedOrigins: ${{ split(variables.allowedOrigins, ',') }}
                 # Secret variable from the group: masked in the logs, never echoed
                 gatewaySecret: $(GATEWAY_SECRET)
