@@ -1,8 +1,9 @@
-// App stack, deployed by provision.yml after the network stack (provision-network.yml).
+// App stack, deployed by provision.yml after the network and data stacks
+// (provision-network.yml, provision-data.yml).
 // Subscription scope: creates rg-<prefix>-<environment> (shared with the network stack) and app.bicep in it.
-// The network ids come from naming.bicep, so the VNet and DNS zones are not looked up.
+// The network ids and the storage account name come from naming.bicep, so nothing is looked up.
 // APIM is a separate stack: bicep/stacks/40-apim with its own pipeline.
-import { resourceGroupName, appNetworkIds } from '../../modules/naming.bicep'
+import { resourceGroupName, appNetworkIds, storageAccountName } from '../../modules/naming.bicep'
 
 targetScope = 'subscription'
 
@@ -25,7 +26,7 @@ var tags = {
   env: environment
 }
 
-// Same group and tags as in the network stack; the deployment is idempotent.
+// Same group and tags as in the network and data stacks; the deployment is idempotent.
 resource rgApp 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   name: resourceGroupName(base)
   location: location
@@ -42,9 +43,9 @@ module app 'app.bicep' = {
     tags: tags
     appServicePlanSku: appServicePlanSku
     appNetwork: appNetworkIds(subscription().subscriptionId, base)
+    storageAccountName: storageAccountName(base, rgApp.id)
   }
 }
 
 output webAppUrl string = app.outputs.webAppUrl
-output storageAccountName string = app.outputs.storageAccountName
 output swaUrl string = 'https://${app.outputs.swaHostname}'

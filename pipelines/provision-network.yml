@@ -1,4 +1,4 @@
-# KRT-run provision network (repo: infra): bicep/stacks/10-network, run first (then provision.yml, provision-apim.yml)
+# KRT-run provision network (repo: infra): bicep/stacks/10-network, run first (then provision-data.yml, provision.yml, provision-apim.yml)
 name: krtrun-provision-network-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:

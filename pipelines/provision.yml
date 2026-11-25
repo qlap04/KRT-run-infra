@@ -1,4 +1,4 @@
-# KRT-run provision (repo: infra): app stack (bicep/stacks/30-app). Order: provision-network.yml, this, provision-apim.yml
+# KRT-run provision (repo: infra): app stack (bicep/stacks/30-app). Order: provision-network.yml, provision-data.yml, this, provision-apim.yml
 name: krtrun-provision-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:

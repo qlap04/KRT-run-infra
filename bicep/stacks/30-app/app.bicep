@@ -1,4 +1,5 @@
-// App stack (called by main.bicep): storage, private endpoints, web, function and the frontend SWA.
+// App stack (called by main.bicep): web, function, the frontend SWA and their roles on the storage
+// account of the data stack.
 import { AppNetwork } from '../../modules/naming.bicep'
 
 targetScope = 'resourceGroup'
@@ -22,39 +23,19 @@ param appServicePlanSku string
 @description('Subnet and private DNS zone ids created by the network stack')
 param appNetwork AppNetwork
 
-var storageName = take(toLower(replace('st${base}${uniqueString(resourceGroup().id)}', '-', '')), 24)
+@description('Storage account created by the data stack')
+param storageAccountName string
+
 var webAppName = '${base}-web'
 var functionAppName = '${base}-func'
-
-module storage '../../modules/storage/storage-account.bicep' = {
-  name: 'storage'
-  params: {
-    name: storageName
-    location: location
-    tags: tags
-  }
-}
-
-module storagePe '../../modules/network/storage-private-endpoints.bicep' = {
-  name: 'storage-pe'
-  params: {
-    location: location
-    tags: tags
-    storageAccountName: storage.outputs.name
-    peSubnetId: appNetwork.peSubnetId
-    dnsZoneIds: appNetwork.dnsZoneIds
-  }
-}
 
 // Queue, container and table names are app config (defaults in the app code).
 var sharedSettings = {
   APP_ENV: environment
 }
 
-// dependsOn storagePe: the private endpoints and DNS must exist before the apps start talking to storage
 module web '../../modules/compute/web.bicep' = {
   name: 'web'
-  dependsOn: [ storagePe ]
   params: {
     planName: '${base}-plan'
     webAppName: webAppName
@@ -62,14 +43,13 @@ module web '../../modules/compute/web.bicep' = {
     tags: tags
     skuName: appServicePlanSku
     integrationSubnetId: appNetwork.appIntegrationSubnetId
-    storageAccountName: storage.outputs.name
+    storageAccountName: storageAccountName
     appSettings: sharedSettings
   }
 }
 
 module func '../../modules/compute/function.bicep' = {
   name: 'function'
-  dependsOn: [ storagePe ]
   params: {
     functionAppName: functionAppName
     location: location
@@ -77,7 +57,7 @@ module func '../../modules/compute/function.bicep' = {
     // The function shares the web plan and joins the same VNet subnet
     planId: web.outputs.planId
     integrationSubnetId: appNetwork.appIntegrationSubnetId
-    storageAccountName: storage.outputs.name
+    storageAccountName: storageAccountName
     appSettings: sharedSettings
   }
 }
@@ -91,16 +71,16 @@ module swa '../../modules/compute/static-web-app.bicep' = {
   }
 }
 
+// Roles live here, not in the data stack: the principal ids exist only once web and function exist.
 module rolesWeb '../../modules/storage/roles.bicep' = {
   name: 'roles-web'
-  params: { storageAccountName: storage.outputs.name, siteName: webAppName, principalId: web.outputs.principalId }
+  params: { storageAccountName: storageAccountName, siteName: webAppName, principalId: web.outputs.principalId }
 }
 
 module rolesFunc '../../modules/storage/roles.bicep' = {
   name: 'roles-func'
-  params: { storageAccountName: storage.outputs.name, siteName: functionAppName, principalId: func.outputs.principalId }
+  params: { storageAccountName: storageAccountName, siteName: functionAppName, principalId: func.outputs.principalId }
 }
 
 output webAppUrl string = 'https://${web.outputs.defaultHostName}'
-output storageAccountName string = storage.outputs.name
 output swaHostname string = swa.outputs.defaultHostname

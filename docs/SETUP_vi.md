@@ -9,20 +9,22 @@ infra/
 ├── bicep/
 │   ├── stacks/            # mỗi thư mục = một lần deploy (scope subscription) = một pipeline; số = thứ tự deploy
 │   │   ├── 10-network/    # main.bicep: RG, VNet, subnet, Private DNS zone (provision-network.yml)
-│   │   ├── 30-app/        # main.bicep + app.bicep: storage, PE, web, function, SWA (provision.yml)
+│   │   ├── 20-data/       # main.bicep: storage account + private endpoint (provision-data.yml)
+│   │   ├── 30-app/        # main.bicep + app.bicep: web, function, SWA, role trên storage (provision.yml)
 │   │   └── 40-apim/       # main.bicep (provision-apim.yml)
 │   └── modules/           # module dùng chung của các stack
 │       ├── naming.bicep   # tên và id dùng chung (import, không deploy)
 │       ├── network/       # vnet, private-dns, storage-private-endpoints
 │       ├── compute/       # web, function, apim, static-web-app
 │       └── storage/       # storage-account, roles (RBAC trên storage)
-├── pipelines/             # provision-network.yml, provision.yml, provision-apim.yml, destroy.yml, templates/, variables/<env>.yml
+├── pipelines/             # provision-network.yml, provision-data.yml, provision.yml, provision-apim.yml, destroy.yml, templates/, variables/<env>.yml
 └── docs/SETUP_vi.md
 ```
 
 Kiểm tra cú pháp (không deploy):
 ```bash
 az bicep lint --file bicep/stacks/10-network/main.bicep
+az bicep lint --file bicep/stacks/20-data/main.bicep
 az bicep lint --file bicep/stacks/30-app/main.bicep
 az bicep lint --file bicep/stacks/40-apim/main.bicep
 ```
@@ -74,9 +76,9 @@ flowchart TD
 |---|---|---|
 | `develop` | **DEV** (lint → what-if → deploy) | Environment `krtrun-dev` |
 
-Hiện chỉ môi trường **dev** đang dùng. Hạ tầng chia thành 3 stack, mỗi stack một pipeline, deploy theo thứ tự **network → app → apim** (stack sau cần stack trước đã tồn tại): `provision-network.yml`, `provision.yml` (app), `provision-apim.yml`. Mỗi pipeline chỉ trigger khi đổi thư mục stack của mình, `bicep/modules/**`, `pipelines/templates/**` hoặc `pipelines/variables/**`. Pipeline theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Chỉ có một stage **DeployDev**: chờ approve trên Environment `krtrun-dev`, rồi chạy lint, what-if và deploy liền nhau. What-if giờ chạy **sau** approve, nên chỉ để đọc lại trong log: muốn xem trước khi approve thì chạy what-if trên máy (`az deployment sub what-if`).
+Hiện chỉ môi trường **dev** đang dùng. Hạ tầng chia thành 4 stack, mỗi stack một pipeline, deploy theo thứ tự **10-network → 20-data → 30-app → 40-apim** (stack sau cần stack trước đã tồn tại): `provision-network.yml`, `provision-data.yml`, `provision.yml` (app), `provision-apim.yml`. Storage nằm ở stack data (vòng đời dữ liệu khác app); role của web và function trên storage nằm ở stack app, vì principal id của managed identity chỉ có sau khi tạo app. Mỗi pipeline chỉ trigger khi đổi thư mục stack của mình, `bicep/modules/**`, `pipelines/templates/**` hoặc `pipelines/variables/**`. Pipeline theo quy tắc trên (pipeline app-deploy ở repo `app` cũng vậy). Chỉ có một stage **DeployDev**: chờ approve trên Environment `krtrun-dev`, rồi chạy lint, what-if và deploy liền nhau. What-if giờ chạy **sau** approve, nên chỉ để đọc lại trong log: muốn xem trước khi approve thì chạy what-if trên máy (`az deployment sub what-if`).
 
-Stage và job được khai báo ngay trong `provision-network.yml` / `provision.yml` / `provision-apim.yml`. Phần làm việc thật nằm ở **một step template** `pipelines/templates/steps/bicep-deployment.yml`, gồm 3 task: lint (Bicep CLI, vì chưa có task có sẵn để lint), what-if, deploy (scope subscription, Bicep tự tạo RG, cần `location`). Gộp một file để team khác chỉ gọi một template, không phải tự ghép từng bước. Chỉ gọi nó trong deployment job có approval gate.
+Stage và job được khai báo ngay trong các file `provision-*.yml` và `provision.yml`. Phần làm việc thật nằm ở **một step template** `pipelines/templates/steps/bicep-deployment.yml`, gồm 3 task: lint (Bicep CLI, vì chưa có task có sẵn để lint), what-if, deploy (scope subscription, Bicep tự tạo RG, cần `location`). Gộp một file để team khác chỉ gọi một template, không phải tự ghép từng bước. Chỉ gọi nó trong deployment job có approval gate.
 
 Resource group do Bicep tạo: `rg-krtrun-dev` (app) và `rg-krtrun-dev-apim` (APIM, tách riêng vì vòng đời và quyền khác app).
 
@@ -116,12 +118,12 @@ Nhánh tính năng (`feature/<tên>`) cắt từ `develop` và merge lại bằn
 
 Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-run-infra](https://github.com/qlap04/KRT-run-infra). Không cần tạo repo Azure Repos hay push lại.
 
-1. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): tạo `sc-krtrun-dev`. Tên phải khớp `serviceConnection` trong `pipelines/variables/dev.yml` (cả 4 pipeline đều đọc từ đây). Có thể dùng chung với repo `app` nếu cùng project. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và tạo resource group. Service connection phải có quyền ở **mức subscription** (không giới hạn trong 1 RG), vì deploy chạy ở scope subscription.
+1. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): tạo `sc-krtrun-dev`. Tên phải khớp `serviceConnection` trong `pipelines/variables/dev.yml` (cả 5 pipeline đều đọc từ đây). Có thể dùng chung với repo `app` nếu cùng project. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và tạo resource group. Service connection phải có quyền ở **mức subscription** (không giới hạn trong 1 RG), vì deploy chạy ở scope subscription.
 2. **Environments**: chỉ cần `krtrun-dev`; vào Approvals and checks rồi **bật Approvals** (pipeline provision và destroy đều chờ duyệt ở đây).
 3. **Variable groups** (Pipelines → Library): chỉ cần `krtrun-dev`. Tên group và tên Environment không viết cứng trong YAML mà ghép từ `<projectName>-<environment>` (`${{ variables.projectName }}-${{ variables.environment }}`), nên mỗi môi trường có group và approval riêng; thêm prod chỉ cần `variables/prod.yml` cùng group/Environment `krtrun-prod`. Pipeline infra cần biến thường `subscriptionId` (Subscription ID của Azure, dạng GUID) và biến secret `GATEWAY_SECRET` (chỉ pipeline APIM dùng; nên chỉ gồm chữ và số vì giá trị được ghép vào JSON). 3 biến secret `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` cũng để trong group này nhưng chỉ pipeline `app-deploy` dùng (xem repo `app`).
-4. **Tạo pipeline** (Pipelines → New pipeline → chọn **GitHub (YAML)** → chọn repo `qlap04/KRT-run-infra` → *Existing Azure Pipelines YAML file*): `krtrun-provision-network` → `/pipelines/provision-network.yml`, `krtrun-provision` → `/pipelines/provision.yml`, `krtrun-provision-apim` → `/pipelines/provision-apim.yml`. Lần đầu Azure DevOps sẽ xin quyền truy cập GitHub. Pipeline `krtrun-provision-network` phải tạo tay trên ADO; hai pipeline còn lại giữ nguyên đường dẫn YAML.
+4. **Tạo pipeline** (Pipelines → New pipeline → chọn **GitHub (YAML)** → chọn repo `qlap04/KRT-run-infra` → *Existing Azure Pipelines YAML file*): `krtrun-provision-network` → `/pipelines/provision-network.yml`, `krtrun-provision-data` → `/pipelines/provision-data.yml`, `krtrun-provision` → `/pipelines/provision.yml`, `krtrun-provision-apim` → `/pipelines/provision-apim.yml`. Lần đầu Azure DevOps sẽ xin quyền truy cập GitHub. Pipeline `krtrun-provision-network` và `krtrun-provision-data` phải tạo tay trên ADO; hai pipeline còn lại giữ nguyên đường dẫn YAML.
 5. **Đổi giá trị thật**: `publisherEmail` trong `pipelines/variables/common.yml`; `prefix` nếu tên `krtrun-dev-web` bị trùng toàn cầu (đổi `projectName` ở `pipelines/variables/common.yml` **và** `pipelines/variables/dev.yml` của repo `app`). Chạy thử trên máy chỉ cần lint và build, ví dụ `az bicep build --file bicep/stacks/30-app/main.bicep --stdout > /dev/null`.
-6. **Chạy**: đẩy hoặc merge vào `develop` → (approve trên `krtrun-dev`) → lint, what-if, deploy DEV. Lần dựng đầu chạy tay theo thứ tự `krtrun-provision-network` → `krtrun-provision` → `krtrun-provision-apim`. Sau đó **luôn** chạy `app-deploy` ở repo `app` (nó gắn lại secret).
+6. **Chạy**: đẩy hoặc merge vào `develop` → (approve trên `krtrun-dev`) → lint, what-if, deploy DEV. Lần dựng đầu chạy tay theo thứ tự `krtrun-provision-network` → `krtrun-provision-data` → `krtrun-provision` → `krtrun-provision-apim`. Sau đó **luôn** chạy `app-deploy` ở repo `app` (nó gắn lại secret).
 
 Đọc kết quả what-if trước khi bấm Approve.
 

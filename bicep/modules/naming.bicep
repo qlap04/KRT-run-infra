@@ -1,8 +1,8 @@
-// Names and resource ids of the network layer, shared by the network stack (creates the
-// resources) and the app stack (consumes them). Import library: other files pull from it
+// Names and resource ids shared by the stacks: the stack that creates a resource and the
+// stacks that use it build the same name, so no stack looks another one up. Import library: other files pull from it
 // with `import { ... } from`, it is not deployed as a module.
 
-@description('Subnet and private DNS zone ids the app stack needs')
+@description('Subnet and private DNS zone ids created by the network stack')
 @export()
 type AppNetwork = {
   @description('Subnet id for App Service VNet integration (web + function)')
@@ -33,11 +33,16 @@ func peSubnetName() string => 'snet-pe'
 @export()
 func dnsZoneName(service string) string => 'privatelink.${service}.${environment().suffixes.storage}'
 
-// Ids built from the names above, so the app stack does not look the network up.
-// The VNet and zones live in the same resource group as the app (resourceGroupName).
+// Ids built from the names above, used by the data and app stacks.
+// The VNet and zones live in the same resource group as data and app (resourceGroupName).
 @export()
 func appNetworkIds(subscriptionId string, base string) AppNetwork => {
   appIntegrationSubnetId: resourceId(subscriptionId, resourceGroupName(base), 'Microsoft.Network/virtualNetworks/subnets', vnetName(base), appSubnetName())
   peSubnetId: resourceId(subscriptionId, resourceGroupName(base), 'Microsoft.Network/virtualNetworks/subnets', vnetName(base), peSubnetName())
   dnsZoneIds: map(storageServices, s => resourceId(subscriptionId, resourceGroupName(base), 'Microsoft.Network/privateDnsZones', dnsZoneName(s)))
 }
+
+// Storage account name (3-24 lowercase letters and digits), unique per resource group.
+// resourceGroupId: resourceGroup().id, or the id of resourceGroupName(base) at subscription scope.
+@export()
+func storageAccountName(base string, resourceGroupId string) string => take(toLower(replace('st${base}${uniqueString(resourceGroupId)}', '-', '')), 24)

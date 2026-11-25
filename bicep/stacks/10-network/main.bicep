@@ -1,6 +1,6 @@
 // Network stack, deployed by its own pipeline (provision-network.yml). Run first.
-// Subscription scope: creates rg-<prefix>-<environment> (shared with the app stack) with the
-// VNet, its subnets and the Private DNS zones. The app stack builds the ids from naming.bicep.
+// Subscription scope: creates rg-<prefix>-<environment> (shared with the data and app stacks)
+// with the VNet, its subnets and the Private DNS zones. Other stacks build the ids from naming.bicep.
 import { resourceGroupName, vnetName } from '../../modules/naming.bicep'
 
 targetScope = 'subscription'
@@ -30,7 +30,7 @@ var tags = {
   env: environment
 }
 
-// Same group and tags as in the app stack; the deployment is idempotent.
+// Same group and tags as in the data and app stacks; the deployment is idempotent.
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   name: resourceGroupName(base)
   location: location

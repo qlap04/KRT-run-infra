@@ -1,4 +1,4 @@
-# KRT-run provision APIM (repo: infra): bicep/stacks/40-apim, run after provision-network.yml and provision.yml
+# KRT-run provision APIM (repo: infra): bicep/stacks/40-apim, run after provision-network.yml, provision-data.yml and provision.yml
 name: krtrun-provision-apim-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:
