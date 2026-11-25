@@ -1,12 +1,12 @@
 # Variables shared by every environment. NO secrets here.
-# The pipelines pass projectName, environment and location (and the APIM publisher) to Bicep as parameters.
+# The pipelines pass projectName, environment, location and the APIM publisher to Bicep.
 # Other Bicep parameters (SKU, address ranges) keep their defaults in bicep/stacks/*/main.bicep.
 variables:
   projectName: krtrun
   location: australiaeast
   publisherEmail: quoclap030904@gmail.com   # APIM publisher
   publisherName: KRT-run
-  # Created by the network and app stacks (subscription scope); names must match
-  # bicep/modules/naming.bicep. $(environment) comes from <env>.yml and is resolved at runtime.
+  # Created by the network, data and app stacks; names must match
+  # bicep/modules/naming.bicep. $(environment) comes from <env>.yml at runtime.
   resourceGroup: rg-$(projectName)-$(environment)
   apimResourceGroup: rg-$(projectName)-$(environment)-apim

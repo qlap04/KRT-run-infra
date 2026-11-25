@@ -1,4 +1,4 @@
-# KRT-run provision APIM (repo: infra): bicep/stacks/40-apim. No dependency on other stacks; CORS origins come from variables/<env>.yml
+# KRT-run provision APIM (repo: infra): bicep/stacks/40-apim. No dependency on other stacks; CORS origins are derived from customDomain.
 name: krtrun-provision-apim-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:
@@ -51,7 +51,9 @@ stages:
                 location: $(location)
                 publisherEmail: $(publisherEmail)
                 publisherName: $(publisherName)
-                # Compile time: the comma-separated variable becomes the array the Bicep param expects
-                allowedOrigins: ${{ split(variables.allowedOrigins, ',') }}
+                # Compile time (dev.yml, not the variable group). When customDomain is
+                # still empty, CORS falls back to the local Vite origin so the first
+                # APIM provision has a valid origin.
+                allowedOrigins: ${{ split(iif(eq(variables.customDomain, ''), 'http://localhost:5173', format('https://{0}', variables.customDomain)), ',') }}
                 # Secret variable from the group: masked in the logs, never echoed
                 gatewaySecret: $(GATEWAY_SECRET)

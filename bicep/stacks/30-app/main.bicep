@@ -20,6 +20,9 @@ param location string
 @description('App Service Plan SKU')
 param appServicePlanSku string = 'B1'
 
+@description('SWA custom domain; empty on the first provision (the CNAME is added after the default hostname is known)')
+param customDomain string = ''
+
 var base = '${prefix}-${environment}'
 var tags = {
   project: 'krtrun'
@@ -44,8 +47,10 @@ module app 'app.bicep' = {
     appServicePlanSku: appServicePlanSku
     appNetwork: appNetworkIds(subscription().subscriptionId, base)
     storageAccountName: storageAccountName(base, rgApp.id)
+    customDomain: customDomain
   }
 }
 
 output webAppUrl string = app.outputs.webAppUrl
 output swaUrl string = 'https://${app.outputs.swaHostname}'
+output swaHostname string = app.outputs.swaHostname

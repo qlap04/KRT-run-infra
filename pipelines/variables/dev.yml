@@ -1,8 +1,11 @@
 # Environment: dev (only active environment)
 variables:
   environment: dev
-  # One service connection per environment (prod gets sc-krtrun-prod in prod.yml)
   serviceConnection: sc-krtrun-dev
-  # APIM CORS origins, comma-separated. Add the frontend URL (output swaUrl of the app stack);
-  # Static Web Apps gets a new random hostname each time it is recreated.
-  allowedOrigins: http://localhost:5173
+  # Custom domain of the Static Web App (Cloudflare CNAME, DNS only, not proxied).
+  # Leave empty on the first provision: Azure validates the CNAME when the
+  # customDomains resource is created, and the target hostname is only known
+  # after the SWA exists (output swaHostname). After the record is in place,
+  # set this to krtrun-dev.kaicloudeg.online and rerun provision.yml, then
+  # provision-apim.yml. APIM CORS is derived from this value.
+  customDomain: ''

@@ -26,6 +26,9 @@ param appNetwork AppNetwork
 @description('Storage account created by the data stack')
 param storageAccountName string
 
+@description('SWA custom domain; empty skips the customDomains resource (see the module)')
+param customDomain string = ''
+
 var webAppName = '${base}-web'
 var functionAppName = '${base}-func'
 
@@ -68,6 +71,7 @@ module swa '../../modules/compute/static-web-app.bicep' = {
     name: '${base}-swa'
     location: swaLocation
     tags: tags
+    customDomain: customDomain
   }
 }
 
