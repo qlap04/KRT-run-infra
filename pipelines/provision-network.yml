@@ -43,7 +43,7 @@ stages:
           - template: templates/steps/bicep-deployment.yml
             parameters:
               deploymentName: $(projectName)-$(environment)-network-$(Build.BuildId)
-              templateFile: $(templateFile)
+              templateFile: ${{ variables.templateFile }}
               serviceConnection: ${{ variables.serviceConnection }}
               subscriptionId: $(subscriptionId)
               location: $(location)
