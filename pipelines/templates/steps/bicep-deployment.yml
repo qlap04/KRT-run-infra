@@ -17,6 +17,12 @@ parameters:
   type: string
   default: bicep-$(Build.BuildId)
 
+# Optional label prefixed on each step displayName (e.g. "Network" -> "Network: Lint").
+# Empty by default so existing callers keep "Bicep lint", "Bicep what-if", "Bicep deploy".
+- name: stepLabel
+  type: string
+  default: ''
+
 # Bicep parameters as an object, e.g. { prefix: $(projectName), gatewaySecret: $(GATEWAY_SECRET) }.
 # A secret variable passed as $(NAME) is masked in the logs.
 - name: parameters
@@ -26,10 +32,10 @@ parameters:
 steps:
 # Lint has no built-in task: the Bicep CLI on the agent is the only option.
 - script: az bicep lint --file ${{ parameters.templateFile }}
-  displayName: Bicep lint
+  displayName: "${{ iif(eq(parameters.stepLabel, ''), 'Bicep lint', format('{0}: Lint', parameters.stepLabel)) }}"
 
 - task: BicepDeploy@0
-  displayName: Bicep what-if
+  displayName: "${{ iif(eq(parameters.stepLabel, ''), 'Bicep what-if', format('{0}: What-if', parameters.stepLabel)) }}"
   inputs:
     type: deployment
     operation: whatIf
@@ -41,7 +47,7 @@ steps:
     parameters: ${{ convertToJson(parameters.parameters) }}
 
 - task: BicepDeploy@0
-  displayName: Bicep deploy
+  displayName: "${{ iif(eq(parameters.stepLabel, ''), 'Bicep deploy', format('{0}: Deploy', parameters.stepLabel)) }}"
   inputs:
     type: deployment
     operation: create

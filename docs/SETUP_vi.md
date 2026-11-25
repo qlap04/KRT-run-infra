@@ -44,7 +44,7 @@ az bicep lint --file bicep/stacks/40-apim/main.bicep
 
 ```mermaid
 flowchart LR
-  A["Nhánh Git develop"] --> B["Stages Network → Data → App<br/>environment = dev"]
+  A["Nhánh Git develop"] --> B["Stage DeployDev<br/>environment = dev"]
   B --> C["pipelines/variables/dev.yml<br/>(+ common.yml)<br/>RG, location, sku, tên app"]
   B --> G["Variable group krtrun-dev<br/>subscriptionId"]
   C --> D["Task BicepDeploy@0<br/>templateFile: bicep/stacks/*/main.bicep<br/>parameters: projectName, environment, location"]
@@ -55,9 +55,9 @@ flowchart LR
 
 Giải thích dễ hiểu (giống việc **gọi món ăn**):
 1. **Nhánh Git** là "bàn nào gọi món". Hiện chỉ có nhánh `develop`, pipeline chờ approve rồi lint, what-if và deploy **DEV**.
-2. Pipeline **nạp `pipelines/variables/dev.yml`** ở mức pipeline (tên resource group, region, SKU, tên web app...) cùng phần dùng chung ở `common.yml`, để cả ba stage cùng dùng.
+2. Stage DeployDev **tự nạp file `pipelines/variables/dev.yml`** (tên resource group, region, SKU, tên web app...) và phần dùng chung ở `common.yml`.
 3. **Infra không biết gì về secret của app.** `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` là cấu hình nghiệp vụ, nên pipeline `app-deploy` (repo `app`) gắn chúng vào app settings của Web App. Lưu ý: Bicep ghi lại **toàn bộ** app settings mỗi lần provision, nên sau mỗi lần provision phải chạy lại `app-deploy` để gắn lại secret.
-4. Pipeline dùng task có sẵn `BicepDeploy@0` (what-if rồi deploy, sau approval ở stage Network). Không có file `.bicepparam`: pipeline truyền tham số cho Bicep dạng inline (`parameters`), lấy từ `pipelines/variables/common.yml` và `dev.yml` (`prefix` = `projectName`, `environment`, `location`, APIM thêm `publisherEmail`, `publisherName`). Tham số còn lại (SKU, dải IP) có giá trị mặc định ngay trong `main.bicep` của từng stack. Secret `GATEWAY_SECRET` lấy từ variable group và được truyền dạng biến secret (log che thành `***`).
+4. Pipeline dùng task có sẵn `BicepDeploy@0` (what-if rồi deploy, cùng một job sau approval). Không có file `.bicepparam`: pipeline truyền tham số cho Bicep dạng inline (`parameters`), lấy từ `pipelines/variables/common.yml` và `dev.yml` (`prefix` = `projectName`, `environment`, `location`, APIM thêm `publisherEmail`, `publisherName`). Tham số còn lại (SKU, dải IP) có giá trị mặc định ngay trong `main.bicep` của từng stack. Secret `GATEWAY_SECRET` lấy từ variable group và được truyền dạng biến secret (log che thành `***`).
 5. Bicep ghi các giá trị đó vào **app settings** của Web App và Function App.
 6. Khi chạy, Azure đưa app settings vào **`process.env`**, và `config.js` đọc ra.
 
@@ -68,19 +68,17 @@ Giải thích dễ hiểu (giống việc **gọi món ăn**):
 ```mermaid
 flowchart TD
   subgraph develop
-    D1[Approve] --> D2["Network"]
-    D2 --> D3["Data"]
-    D3 --> D4["App"]
+    D1[Approve] --> D2["Một job: Network, Data, App"]
   end
 ```
 
 | Nhánh | Các stage chạy (tuần tự) | Approval |
 |---|---|---|
-| `develop` | **Network → Data → App** (lint → what-if → deploy mỗi stage) | Environment `krtrun-dev` (chỉ stage Network) |
+| `develop` | **DEV** (một job: Network → Data → App) | Environment `krtrun-dev` |
 
-Hiện chỉ môi trường **dev** đang dùng. Hạ tầng chia thành 4 stack, deploy theo thứ tự **10-network → 20-data → 30-app → 40-apim** (stack sau cần stack trước đã tồn tại). `provision.yml` deploy lần lượt ba stack network, data và app (ba stage `Network`, `Data`, `App` nối tiếp bằng `dependsOn`, mỗi stage gọi step template một lần với `templateFile` compile-time và `deploymentName` riêng). `provision-apim.yml` giữ pipeline riêng cho stack APIM. Storage nằm ở stack data (vòng đời dữ liệu khác app); role của web và function trên storage nằm ở stack app, vì principal id của managed identity chỉ có sau khi tạo app. `provision.yml` trigger khi đổi `bicep/stacks/10-network/**`, `20-data/**`, `30-app/**`, `bicep/modules/**`, `pipelines/provision.yml`, `pipelines/templates/**` hoặc `pipelines/variables/**`; `provision-apim.yml` trigger trên thư mục stack của mình và các đường dẫn dùng chung. Không dùng danh sách exclude. Pipeline app-deploy ở repo `app` cũng theo quy tắc template đó. Approval chỉ nằm ở stage Network (deployment job trên Environment `krtrun-dev`); Data và App là job thường nên không hỏi approve lại. What-if giờ chạy **sau** approve, nên chỉ để đọc lại trong log: muốn xem trước khi approve thì chạy what-if trên máy (`az deployment sub what-if`).
+Hiện chỉ môi trường **dev** đang dùng. Hạ tầng chia thành 4 stack, deploy theo thứ tự **10-network → 20-data → 30-app → 40-apim** (stack sau cần stack trước đã tồn tại). `provision.yml` deploy lần lượt ba stack network, data và app trong **một stage, một deployment job** (ba lần gọi step template, mỗi lần một `stepLabel` `Network`/`Data`/`App`, `templateFile` compile-time và `deploymentName` riêng). Một job để cả ba stack chạy trên cùng một máy agent; tách stage hoặc job sẽ tính thêm máy. `provision-apim.yml` giữ pipeline riêng cho stack APIM. Storage nằm ở stack data (vòng đời dữ liệu khác app); role của web và function trên storage nằm ở stack app, vì principal id của managed identity chỉ có sau khi tạo app. `provision.yml` trigger khi đổi `bicep/stacks/10-network/**`, `20-data/**`, `30-app/**`, `bicep/modules/**`, `pipelines/provision.yml`, `pipelines/templates/**` hoặc `pipelines/variables/**`; `provision-apim.yml` trigger trên thư mục stack của mình và các đường dẫn dùng chung. Không dùng danh sách exclude. Pipeline app-deploy ở repo `app` cũng theo quy tắc template đó. Stage **DeployDev** chờ approve trên Environment `krtrun-dev`, rồi chạy lint, what-if và deploy liền nhau trong cùng job. What-if giờ chạy **sau** approve, nên chỉ để đọc lại trong log: muốn xem trước khi approve thì chạy what-if trên máy (`az deployment sub what-if`).
 
-Stage và job được khai báo ngay trong `provision.yml` và `provision-apim.yml`. Phần làm việc thật nằm ở **một step template** `pipelines/templates/steps/bicep-deployment.yml`, gồm 3 task: lint (Bicep CLI, vì chưa có task có sẵn để lint), what-if, deploy (scope subscription, Bicep tự tạo RG, cần `location`). Gộp một file để team khác chỉ gọi một template, không phải tự ghép từng bước. Trong `provision.yml`, chỉ stage Network dùng deployment job có approval gate; Data và App gọi cùng template trong job thường sau khi Network đã xong. `provision-apim.yml` vẫn gọi template trong deployment job có approval.
+Stage và job được khai báo ngay trong `provision.yml` và `provision-apim.yml`. Phần làm việc thật nằm ở **một step template** `pipelines/templates/steps/bicep-deployment.yml`, gồm 3 task: lint (Bicep CLI, vì chưa có task có sẵn để lint), what-if, deploy (scope subscription, Bicep tự tạo RG, cần `location`). Gộp một file để team khác chỉ gọi một template, không phải tự ghép từng bước. Cả `provision.yml` và `provision-apim.yml` gọi template trong một deployment job có approval gate. Tham số tùy chọn `stepLabel` gắn prefix lên `displayName` của từng bước (ví dụ `Network: Lint`); nếu bỏ trống thì giữ tên mặc định `Bicep lint` / `Bicep what-if` / `Bicep deploy`.
 
 Resource group do Bicep tạo: `rg-krtrun-dev` (app) và `rg-krtrun-dev-apim` (APIM, tách riêng vì vòng đời và quyền khác app).
 
