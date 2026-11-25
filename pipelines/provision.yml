@@ -1,4 +1,5 @@
-# KRT-run provision (repo: infra): app stack (bicep/stacks/30-app). Order: provision-network.yml, provision-data.yml, this, provision-apim.yml
+# KRT-run provision (repo: infra): network, data and app stacks
+# (bicep/stacks/10-network, 20-data, 30-app), then provision-apim.yml.
 name: krtrun-provision-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:
@@ -7,6 +8,8 @@ trigger:
     - develop
   paths:
     include:
+    - bicep/stacks/10-network/**
+    - bicep/stacks/20-data/**
     - bicep/stacks/30-app/**
     - bicep/modules/**
     - pipelines/provision.yml
@@ -20,8 +23,6 @@ pool:
 # Shared by all environments. Env-specific variables are loaded per stage.
 variables:
 - template: variables/common.yml
-- name: templateFile
-  value: bicep/stacks/30-app/main.bicep
 
 stages:
 - stage: DeployDev
@@ -40,10 +41,33 @@ stages:
         deploy:
           steps:
           - checkout: self
+          # Stack order network, data, app: each stack builds the ids of the previous ones from the same names.
+          - template: templates/steps/bicep-deployment.yml
+            parameters:
+              deploymentName: $(projectName)-$(environment)-network-$(Build.BuildId)
+              templateFile: ${{ 'bicep/stacks/10-network/main.bicep' }}
+              serviceConnection: ${{ variables.serviceConnection }}
+              subscriptionId: $(subscriptionId)
+              location: $(location)
+              parameters:
+                prefix: $(projectName)
+                environment: $(environment)
+                location: $(location)
+          - template: templates/steps/bicep-deployment.yml
+            parameters:
+              deploymentName: $(projectName)-$(environment)-data-$(Build.BuildId)
+              templateFile: ${{ 'bicep/stacks/20-data/main.bicep' }}
+              serviceConnection: ${{ variables.serviceConnection }}
+              subscriptionId: $(subscriptionId)
+              location: $(location)
+              parameters:
+                prefix: $(projectName)
+                environment: $(environment)
+                location: $(location)
           - template: templates/steps/bicep-deployment.yml
             parameters:
               deploymentName: $(projectName)-$(environment)-app-$(Build.BuildId)
-              templateFile: ${{ variables.templateFile }}
+              templateFile: ${{ 'bicep/stacks/30-app/main.bicep' }}
               serviceConnection: ${{ variables.serviceConnection }}
               subscriptionId: $(subscriptionId)
               location: $(location)
