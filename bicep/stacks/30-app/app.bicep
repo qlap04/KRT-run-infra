@@ -1,4 +1,6 @@
 // App stack (called by main.bicep): storage, private endpoints, web, function and the frontend SWA.
+import { AppNetwork } from '../../modules/naming.bicep'
+
 targetScope = 'resourceGroup'
 
 @description('Name base <prefix>-<env>, built once in main.bicep')
@@ -17,14 +19,8 @@ param swaLocation string = 'eastasia'
 @description('App Service Plan SKU')
 param appServicePlanSku string
 
-@description('Subnet id for App Service VNet integration (from the network stack)')
-param appIntegrationSubnetId string
-
-@description('Subnet id for the storage private endpoints (from the network stack)')
-param peSubnetId string
-
-@description('Private DNS zone ids for blob, queue, table (from the network stack)')
-param dnsZoneIds array
+@description('Subnet and private DNS zone ids created by the network stack')
+param appNetwork AppNetwork
 
 var storageName = take(toLower(replace('st${base}${uniqueString(resourceGroup().id)}', '-', '')), 24)
 var webAppName = '${base}-web'
@@ -45,8 +41,8 @@ module storagePe '../../modules/network/storage-private-endpoints.bicep' = {
     location: location
     tags: tags
     storageAccountName: storage.outputs.name
-    peSubnetId: peSubnetId
-    dnsZoneIds: dnsZoneIds
+    peSubnetId: appNetwork.peSubnetId
+    dnsZoneIds: appNetwork.dnsZoneIds
   }
 }
 
@@ -65,7 +61,7 @@ module web '../../modules/compute/web.bicep' = {
     location: location
     tags: tags
     skuName: appServicePlanSku
-    integrationSubnetId: appIntegrationSubnetId
+    integrationSubnetId: appNetwork.appIntegrationSubnetId
     storageAccountName: storage.outputs.name
     appSettings: sharedSettings
   }
@@ -80,7 +76,7 @@ module func '../../modules/compute/function.bicep' = {
     tags: tags
     // The function shares the web plan and joins the same VNet subnet
     planId: web.outputs.planId
-    integrationSubnetId: appIntegrationSubnetId
+    integrationSubnetId: appNetwork.appIntegrationSubnetId
     storageAccountName: storage.outputs.name
     appSettings: sharedSettings
   }

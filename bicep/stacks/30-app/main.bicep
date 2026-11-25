@@ -20,7 +20,6 @@ param location string
 param appServicePlanSku string = 'B1'
 
 var base = '${prefix}-${environment}'
-var network = appNetworkIds(subscription().subscriptionId, base)
 var tags = {
   project: 'krtrun'
   env: environment
@@ -42,9 +41,7 @@ module app 'app.bicep' = {
     location: location
     tags: tags
     appServicePlanSku: appServicePlanSku
-    appIntegrationSubnetId: network.appIntegrationSubnetId
-    peSubnetId: network.peSubnetId
-    dnsZoneIds: network.dnsZoneIds
+    appNetwork: appNetworkIds(subscription().subscriptionId, base)
   }
 }
 
