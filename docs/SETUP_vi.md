@@ -1,6 +1,6 @@
 # KRT-run (repo `infra`) – Hướng dẫn
 
-Repo này chứa **hạ tầng Azure** bằng **Bicep** và pipeline **provision** (Azure DevOps): VNet, App Service Plan + Web App (Node 22), Function App (chạy chung gói B1 với web), Storage (Blob/Queue/Table), APIM Consumption, Static Web Apps Free (frontend React). Code ứng dụng và pipeline app-deploy nằm ở repo riêng `app`.
+Repo này chứa **hạ tầng Azure** bằng **Bicep** và pipeline **provision** (Azure DevOps): VNet, App Service Plan + Web App (Node 22), Function App (chạy chung gói B1 với web), Storage (Blob/Queue/Table), APIM Consumption, Static Web Apps Free (frontend React), Key Vault Standard (secret của app). Code ứng dụng và pipeline app-deploy nằm ở repo riêng `app`.
 
 ```
 infra/
@@ -8,6 +8,7 @@ infra/
 ├── .cursor/rules/bicep.mdc
 ├── bicep/
 │   ├── stacks/            # mỗi thư mục = một lần deploy (scope subscription); số = thứ tự deploy
+│   │   ├── 00-secret/     # main.bicep: Key Vault + role Secrets Officer (provision.yml)
 │   │   ├── 10-network/    # main.bicep: RG, VNet, subnet, Private DNS zone (provision.yml)
 │   │   ├── 20-data/       # main.bicep: storage account + private endpoint (provision.yml)
 │   │   ├── 30-app/        # main.bicep + app.bicep: web, function, SWA, role trên storage (provision.yml)
@@ -16,6 +17,7 @@ infra/
 │       ├── naming.bicep   # tên và id dùng chung (import, không deploy)
 │       ├── network/       # vnet, private-dns, storage-private-endpoints
 │       ├── compute/       # web, function, apim, static-web-app
+│       ├── security/      # key-vault, key-vault-role (RBAC trên vault)
 │       └── storage/       # storage-account, roles (RBAC trên storage)
 ├── pipelines/             # provision.yml, provision-apim.yml, destroy.yml, templates/, variables/<env>.yml
 └── docs/SETUP_vi.md
@@ -23,6 +25,7 @@ infra/
 
 Kiểm tra cú pháp (không deploy):
 ```bash
+az bicep lint --file bicep/stacks/00-secret/main.bicep
 az bicep lint --file bicep/stacks/10-network/main.bicep
 az bicep lint --file bicep/stacks/20-data/main.bicep
 az bicep lint --file bicep/stacks/30-app/main.bicep
@@ -36,7 +39,7 @@ az bicep lint --file bicep/stacks/40-apim/main.bicep
 | `APP_ENV` | Tên môi trường | param `environment` |
 | `STORAGE_ACCOUNT_NAME` | Tên storage (dùng managed identity) | output module storage |
 | `QUEUE_NAME`, `BLOB_CONTAINER`, `TABLE_USERS/RUNS/AUDIT` | Tên queue, container, table. Chỉ có **1 container** `proofs`: ảnh mới nằm ở thư mục `incoming/`, ảnh đã xử lý nằm ở `processed/` | **không** do infra đặt; mặc định nằm trong code app (`proofs`, `upload-jobs`, `Users`, `Runs`, `AuditLog`) |
-| `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` | **Secret** | **không** do infra đặt; pipeline `app-deploy` ở repo `app` gắn vào Web App |
+| `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY`, `GATEWAY_SECRET` | **Secret** (chỉ Web App) | Giá trị nằm trong Key Vault của stack `00-secret`, đặt tay một lần (bước 7 mục 3). Stack app chỉ ghi *Key Vault reference* `@Microsoft.KeyVault(VaultName=...;SecretName=...)` |
 
 ---
 
@@ -46,7 +49,7 @@ az bicep lint --file bicep/stacks/40-apim/main.bicep
 flowchart LR
   A["Nhánh Git develop"] --> B["Stage DeployDev<br/>environment = dev"]
   B --> C["pipelines/variables/dev.yml<br/>(+ common.yml)<br/>RG, location, sku, tên app"]
-  B --> G["Variable group krtrun-dev<br/>subscriptionId"]
+  B --> G["Variable group krtrun-dev<br/>subscriptionId, officerPrincipalId"]
   C --> D["Task BicepDeploy@0<br/>templateFile: bicep/stacks/*/main.bicep<br/>parameters: projectName, environment, location"]
   G --> D
   D --> E["Bicep: app settings<br/>APP_ENV, STORAGE_ACCOUNT_NAME, ..."]
@@ -56,8 +59,8 @@ flowchart LR
 Giải thích dễ hiểu (giống việc **gọi món ăn**):
 1. **Nhánh Git** là "bàn nào gọi món". Hiện chỉ có nhánh `develop`, pipeline chờ approve rồi lint, what-if và deploy **DEV**.
 2. Stage DeployDev **tự nạp file `pipelines/variables/dev.yml`** (tên resource group, region, SKU, tên web app...) và phần dùng chung ở `common.yml`.
-3. **Infra không biết gì về secret của app.** `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` là cấu hình nghiệp vụ, nên pipeline `app-deploy` (repo `app`) gắn chúng vào app settings của Web App. Lưu ý: Bicep ghi lại **toàn bộ** app settings mỗi lần provision, nên sau mỗi lần provision phải chạy lại `app-deploy` để gắn lại secret.
-4. Pipeline dùng task có sẵn `BicepDeploy@0` (what-if rồi deploy, cùng một job sau approval). Không có file `.bicepparam`: pipeline truyền tham số cho Bicep dạng inline (`parameters`), lấy từ `pipelines/variables/common.yml` và `dev.yml` (`prefix` = `projectName`, `environment`, `location`, APIM thêm `publisherEmail`, `publisherName`). Tham số còn lại (SKU, dải IP) có giá trị mặc định ngay trong `main.bicep` của từng stack. Secret `GATEWAY_SECRET` lấy từ variable group và được truyền dạng biến secret (log che thành `***`).
+3. **Infra không giữ giá trị secret.** `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY`, `GATEWAY_SECRET` nằm trong Key Vault (đặt tay một lần, bước 7 mục 3). Stack app ghi vào app settings của Web App chuỗi reference `@Microsoft.KeyVault(VaultName=...;SecretName=...)`, không ghi giá trị. Khi chạy, App Service dùng managed identity của Web App (role **Key Vault Secrets User**) để đọc giá trị thật, nên portal chỉ hiện chuỗi reference. Function App không dùng các secret này nên không có role trên vault. APIM đọc `gateway-secret` từ cùng vault bằng managed identity của APIM. Lưu ý: Bicep ghi lại **toàn bộ** app settings mỗi lần provision, nên sau mỗi lần provision vẫn chạy lại `app-deploy` (pipeline app gắn `ENSURE_STORAGE`).
+4. Pipeline dùng task có sẵn `BicepDeploy@0` (what-if rồi deploy, cùng một job sau approval). Không có file `.bicepparam`: pipeline truyền tham số cho Bicep dạng inline (`parameters`), lấy từ `pipelines/variables/common.yml` và `dev.yml` (`prefix` = `projectName`, `environment`, `location`, APIM thêm `publisherEmail`, `publisherName`). Tham số còn lại (SKU, dải IP) có giá trị mặc định ngay trong `main.bicep` của từng stack. Pipeline không truyền giá trị secret nào vào Bicep; stack secret chỉ nhận thêm `officerPrincipalId` (object id của người đặt secret, không phải secret) từ variable group.
 5. Bicep ghi các giá trị đó vào **app settings** của Web App và Function App.
 6. Khi chạy, Azure đưa app settings vào **`process.env`**, và `config.js` đọc ra.
 
@@ -68,19 +71,19 @@ Giải thích dễ hiểu (giống việc **gọi món ăn**):
 ```mermaid
 flowchart TD
   subgraph develop
-    D1[Approve] --> D2["Một job: Network, Data, App"]
+    D1[Approve] --> D2["Một job: Secret, Network, Data, App"]
   end
 ```
 
 | Nhánh | Các stage chạy (tuần tự) | Approval |
 |---|---|---|
-| `develop` | **DEV** (một job: Network → Data → App) | Environment `krtrun-dev` |
+| `develop` | **DEV** (một job: Secret → Network → Data → App) | Environment `krtrun-dev` |
 
-Hiện chỉ môi trường **dev** đang dùng. Hạ tầng chia thành 4 stack, deploy theo thứ tự **10-network → 20-data → 30-app → 40-apim** (stack sau cần stack trước đã tồn tại). `provision.yml` deploy lần lượt ba stack network, data và app trong **một stage, một deployment job** (ba lần gọi step template, mỗi lần một `stepLabel` `Network`/`Data`/`App`, `templateFile` compile-time và `deploymentName` riêng). Một job để cả ba stack chạy trên cùng một máy agent; tách stage hoặc job sẽ tính thêm máy. `provision-apim.yml` giữ pipeline riêng cho stack APIM. Storage nằm ở stack data (vòng đời dữ liệu khác app); role của web và function trên storage nằm ở stack app, vì principal id của managed identity chỉ có sau khi tạo app. `provision.yml` trigger khi đổi `bicep/stacks/10-network/**`, `20-data/**`, `30-app/**`, `bicep/modules/**`, `pipelines/provision.yml`, `pipelines/templates/**` hoặc `pipelines/variables/**`; `provision-apim.yml` trigger trên thư mục stack của mình và các đường dẫn dùng chung. Không dùng danh sách exclude. Pipeline app-deploy ở repo `app` cũng theo quy tắc template đó. Stage **DeployDev** chờ approve trên Environment `krtrun-dev`, rồi chạy lint, what-if và deploy liền nhau trong cùng job. What-if giờ chạy **sau** approve, nên chỉ để đọc lại trong log: muốn xem trước khi approve thì chạy what-if trên máy (`az deployment sub what-if`).
+Hiện chỉ môi trường **dev** đang dùng. Hạ tầng chia thành 5 stack, deploy theo thứ tự **00-secret → 10-network → 20-data → 30-app → 40-apim** (stack sau cần stack trước đã tồn tại). `provision.yml` deploy lần lượt bốn stack secret, network, data và app trong **một stage, một deployment job** (bốn lần gọi step template, mỗi lần một `stepLabel` `Secret`/`Network`/`Data`/`App`, `templateFile` compile-time và `deploymentName` riêng). Một job để cả bốn stack chạy trên cùng một máy agent; tách stage hoặc job sẽ tính thêm máy. `provision-apim.yml` giữ pipeline riêng cho stack APIM. Storage nằm ở stack data (vòng đời dữ liệu khác app); role của web và function trên storage nằm ở stack app, vì principal id của managed identity chỉ có sau khi tạo app. Key Vault nằm trong `rg-krtrun-dev-sec` (`secretResourceGroupName()` trong `bicep/modules/naming.bicep`). Pipeline `destroy.yml` chỉ xoá `rg-krtrun-dev` và `rg-krtrun-dev-apim`, nên vault và bốn secret còn lại sau khi destroy. `provision.yml` trigger khi đổi `bicep/stacks/00-secret/**`, `10-network/**`, `20-data/**`, `30-app/**`, `bicep/modules/**`, `pipelines/provision.yml`, `pipelines/templates/**` hoặc `pipelines/variables/**`; `provision-apim.yml` trigger trên thư mục stack của mình và các đường dẫn dùng chung. Không dùng danh sách exclude. Pipeline app-deploy ở repo `app` cũng theo quy tắc template đó. Stage **DeployDev** chờ approve trên Environment `krtrun-dev`, rồi chạy lint, what-if và deploy liền nhau trong cùng job. What-if giờ chạy **sau** approve, nên chỉ để đọc lại trong log: muốn xem trước khi approve thì chạy what-if trên máy (`az deployment sub what-if`).
 
 Stage và job được khai báo ngay trong `provision.yml` và `provision-apim.yml`. Phần làm việc thật nằm ở **một step template** `pipelines/templates/steps/bicep-deployment.yml`, gồm 3 task: lint (Bicep CLI, vì chưa có task có sẵn để lint), what-if, deploy (scope subscription, Bicep tự tạo RG, cần `location`). Gộp một file để team khác chỉ gọi một template, không phải tự ghép từng bước. Cả `provision.yml` và `provision-apim.yml` gọi template trong một deployment job có approval gate. Tham số tùy chọn `stepLabel` gắn prefix lên `displayName` của từng bước (ví dụ `Network: Lint`); nếu bỏ trống thì giữ tên mặc định `Bicep lint` / `Bicep what-if` / `Bicep deploy`.
 
-Resource group do Bicep tạo: `rg-krtrun-dev` (app) và `rg-krtrun-dev-apim` (APIM, tách riêng vì vòng đời và quyền khác app).
+Resource group do Bicep tạo: `rg-krtrun-dev` (network, data, app) và `rg-krtrun-dev-sec` (Key Vault) và `rg-krtrun-dev-apim` (APIM, tách riêng vì vòng đời và quyền khác app).
 
 Repo khác (ví dụ `app`) gọi step template này ngay trong job của họ:
 ```yaml
@@ -106,7 +109,7 @@ resources:
       environment: dev
       location: australiaeast
 ```
-Approval **không** nằm trong YAML: bạn vào Azure DevOps → Pipelines → Environments → `krtrun-dev` → Approvals and checks, rồi bật Approvals.
+Approval **không** nằm trong YAML; cấu hình trong Azure DevOps → Pipelines → Environments → `krtrun-dev` → Approvals and checks, rồi bật Approvals.
 
 Nhánh tính năng (`feature/<tên>`) cắt từ `develop` và merge lại bằng pull request.
 
@@ -120,11 +123,20 @@ Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-r
 
 1. **Service connection** (Project settings → Service connections → *Azure Resource Manager* → **Workload identity federation**): tạo `sc-krtrun-dev`. Tên phải khớp `serviceConnection` trong `pipelines/variables/dev.yml` (cả 3 pipeline đều đọc từ đây). Có thể dùng chung với repo `app` nếu cùng project. Cần quyền **Contributor** và **User Access Administrator** (hoặc Owner) vì Bicep tạo *role assignment* cho managed identity và tạo resource group. Service connection phải có quyền ở **mức subscription** (không giới hạn trong 1 RG), vì deploy chạy ở scope subscription.
 2. **Environments**: chỉ cần `krtrun-dev`; vào Approvals and checks rồi **bật Approvals** (pipeline provision và destroy đều chờ duyệt ở đây).
-3. **Variable groups** (Pipelines → Library): chỉ cần `krtrun-dev`. Tên group và tên Environment không viết cứng trong YAML mà ghép từ `<projectName>-<environment>` (`${{ variables.projectName }}-${{ variables.environment }}`), nên mỗi môi trường có group và approval riêng; thêm prod chỉ cần `variables/prod.yml` cùng group/Environment `krtrun-prod`. Pipeline infra cần biến thường `subscriptionId` (Subscription ID của Azure, dạng GUID) và biến secret `GATEWAY_SECRET` (chỉ pipeline APIM dùng; nên chỉ gồm chữ và số vì giá trị được ghép vào JSON). 3 biến secret `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` cũng để trong group này nhưng chỉ pipeline `app-deploy` dùng (xem repo `app`).
+3. **Variable groups** (Pipelines → Library): chỉ cần `krtrun-dev`. Tên group và tên Environment không viết cứng trong YAML mà ghép từ `<projectName>-<environment>` (`${{ variables.projectName }}-${{ variables.environment }}`), nên mỗi môi trường có group và approval riêng; thêm prod chỉ cần `variables/prod.yml` cùng group/Environment `krtrun-prod`. Pipeline infra cần 2 biến thường (không phải secret): `subscriptionId` (Subscription ID của Azure, dạng GUID) và `officerPrincipalId` (object id trong Microsoft Entra ID của người đặt secret, lấy bằng `az ad signed-in-user show --query id -o tsv`). Group **không** chứa giá trị secret: `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY`, `GATEWAY_SECRET` nằm trong Key Vault (bước 7).
 4. **Tạo pipeline** (Pipelines → New pipeline → chọn **GitHub (YAML)** → chọn repo `qlap04/KRT-run-infra` → *Existing Azure Pipelines YAML file*): `krtrun-provision` → `/pipelines/provision.yml`, `krtrun-provision-apim` → `/pipelines/provision-apim.yml`. Lần đầu Azure DevOps sẽ xin quyền truy cập GitHub.
 5. **Đổi giá trị thật**: `publisherEmail` trong `pipelines/variables/common.yml`; `prefix` nếu tên `krtrun-dev-web` bị trùng toàn cầu (đổi `projectName` ở `pipelines/variables/common.yml` **và** `pipelines/variables/dev.yml` của repo `app`). Chạy thử trên máy chỉ cần lint và build, ví dụ `az bicep build --file bicep/stacks/30-app/main.bicep --stdout > /dev/null`.
-6. **Chạy**: đẩy hoặc merge vào `develop` → (approve trên `krtrun-dev`) → lint, what-if, deploy DEV. Lần dựng đầu chạy tay theo thứ tự `krtrun-provision` → `krtrun-provision-apim`. `customDomain` trong `pipelines/variables/dev.yml` để trống lần đầu, nên stack app chỉ tạo SWA với hostname mặc định (output `swaHostname` / `swaUrl`) và APIM CORS tạm dùng `http://localhost:5173`. Sau đó **luôn** chạy `app-deploy` ở repo `app` (nó gắn lại secret).
-7. **Custom domain của SWA** (sau bước 6): trên Cloudflare thêm bản ghi CNAME `krtrun-dev.kaicloudeg.online` trỏ tới giá trị output `swaHostname` (dạng `*.azurestaticapps.net`), chế độ **DNS only** (tắt proxy). Đợi CNAME phân giải xong, đặt `customDomain: krtrun-dev.kaicloudeg.online` trong `pipelines/variables/dev.yml`, rồi chạy lại `krtrun-provision` rồi `krtrun-provision-apim`. Lần chạy app sẽ tạo resource custom domain (Azure kiểm tra CNAME); pipeline APIM lấy origin CORS `https://<customDomain>` từ cùng biến đó.
+6. **Chạy**: đẩy hoặc merge vào `develop` → (approve trên `krtrun-dev`) → lint, what-if, deploy DEV. Lần dựng đầu chạy tay theo thứ tự `krtrun-provision` → đặt secret vào Key Vault (bước 7) → `krtrun-provision-apim` (named value `gateway-secret` cần secret đã có trong vault) → `app-deploy`. `customDomain` trong `pipelines/variables/dev.yml` để trống lần đầu, nên stack app chỉ tạo SWA với hostname mặc định (output `swaHostname` / `swaUrl`) và APIM CORS tạm dùng `http://localhost:5173`. Sau mỗi lần provision vẫn chạy lại `app-deploy` ở repo `app` (Bicep ghi lại toàn bộ app settings).
+7. **Đặt secret vào Key Vault** (một lần, sau lần chạy `krtrun-provision` đầu tiên): bước `Secret` tạo vault `kvkrtrundev<chuỗi ngẫu nhiên>` (output `keyVaultName`) và cấp role **Key Vault Secrets Officer** cho `officerPrincipalId`. Đặt 4 secret bằng giá trị thật thay cho placeholder; không ghi giá trị vào repo, chat hay variable group:
+   ```bash
+   KV=$(az keyvault list -g rg-krtrun-dev-sec --query '[0].name' -o tsv)
+   az keyvault secret set --vault-name "$KV" --name session-secret --value '<SESSION_SECRET>'
+   az keyvault secret set --vault-name "$KV" --name admin-code     --value '<ADMIN_CODE>'
+   az keyvault secret set --vault-name "$KV" --name api-key        --value '<API_KEY>'
+   az keyvault secret set --vault-name "$KV" --name gateway-secret --value '<GATEWAY_SECRET>'
+   ```
+   `gateway-secret` nên chỉ gồm chữ và số. Role mới có thể mất vài phút mới có hiệu lực: lỗi `Forbidden` ngay sau provision thì chờ rồi chạy lại. Đổi giá trị: chạy lại `az keyvault secret set` (tạo phiên bản mới), rồi restart Web App; APIM tự làm mới named value theo chu kỳ. Sau khi vault đã có đủ 4 secret, xoá 4 biến secret cũ khỏi variable group `krtrun-dev`.
+8. **Custom domain của SWA** (sau bước 6 và 7): trên Cloudflare thêm bản ghi CNAME `krtrun-dev.kaicloudeg.online` trỏ tới giá trị output `swaHostname` (dạng `*.azurestaticapps.net`), chế độ **DNS only** (tắt proxy). Đợi CNAME phân giải xong, đặt `customDomain: krtrun-dev.kaicloudeg.online` trong `pipelines/variables/dev.yml`, rồi chạy lại `krtrun-provision` rồi `krtrun-provision-apim`. Lần chạy app sẽ tạo resource custom domain (Azure kiểm tra CNAME); pipeline APIM lấy origin CORS `https://<customDomain>` từ cùng biến đó.
 
 Đọc kết quả what-if trước khi bấm Approve.
 
@@ -142,6 +154,7 @@ Code đã nằm trên GitHub, nhánh `develop`: [https://github.com/qlap04/KRT-r
 | Private DNS zone (blob, queue, table) | ~0,50 USD/zone/tháng × 3 | ~1,5 USD (tính theo tháng, xoá sớm vẫn có thể bị tính gần đủ) |
 | APIM | Consumption (1 triệu call miễn phí) | ~0đ |
 | Static Web Apps | Free (region `eastasia`, vì SWA không có ở australiaeast) | 0đ |
+| Key Vault | Standard (khoảng 0,03 USD mỗi 10.000 lần đọc secret) | ~0đ |
 | **Tổng bộ dev** | B1 + private endpoint + DNS (~2 USD, ~50k đồng) | **< 200k** (khoảng 140k) |
 
 Hiện chỉ dựng bộ **dev**, dùng gói **B1**. Giá B1 khoảng 0,019 USD/giờ, tức khoảng 0,15 USD (~4k đồng) cho 8 giờ. Một tháng 22 ngày làm việc khoảng 3,3 USD (~87k đồng). **Điều kiện: dùng xong là chạy pipeline destroy ngay.** Nếu để chạy 24/7 thì B1 tốn khoảng 13 USD/tháng (~330k), vượt 200k.
@@ -152,10 +165,12 @@ Gói chỉ được chọn B1, B2 hoặc B3 (tham số `appServicePlanSku` trong
 
 **Cách 1 – pipeline `pipelines/destroy.yml`** (chỉ chạy tay, không tự trigger; luôn xoá môi trường **dev**):
 1. Tạo pipeline `krtrun-destroy` giống bước tạo provision: **GitHub (YAML)** → repo `qlap04/KRT-run-infra` → `/pipelines/destroy.yml`, rồi **Run pipeline**.
-2. Pipeline dừng ở approval của environment `krtrun-dev`. **Bạn bấm Approve thì mới xoá**, không Approve thì không xoá gì (đây là chốt an toàn duy nhất).
+2. Pipeline dừng ở approval của environment `krtrun-dev`. **Chỉ xoá sau khi người duyệt bấm Approve**, không Approve thì không xoá gì (đây là chốt an toàn duy nhất).
 3. Khi chạy: xoá APIM trước, **purge** bản soft-delete để hôm sau tạo lại không bị trùng tên, rồi xoá 2 resource group (`rg-krtrun-dev-apim` rồi `rg-krtrun-dev`).
 
 ⚠️ Pipeline này xoá toàn bộ resource group `rg-krtrun-dev` và `rg-krtrun-dev-apim`. Hãy chắc chắn trước khi Approve.
+
+Pipeline **không** xoá `rg-krtrun-dev-sec`. Key Vault và bốn secret còn lại sau destroy, nên lần provision sau không phải đặt lại secret.
 
 **Cách 2 – chạy tay bằng lệnh:**
 ```bash
@@ -199,19 +214,17 @@ flowchart LR
 ```
 
 Cần biết:
-- **Không xem được dữ liệu storage từ laptop.** Public access đã tắt, nên Storage browser trên portal hoặc Azure Storage Explorer sẽ báo lỗi 403. Muốn xem thì tạm bật: Storage account → **Networking** → **Public network access** = *Enabled from selected virtual networks and IP addresses* rồi thêm IP của bạn. Xem xong thì tắt lại. Lần deploy Bicep tiếp theo cũng tự tắt lại. Container, queue, table **không** do infra tạo: app tự tạo lúc khởi động (`storage.ensure()` khi `ENSURE_STORAGE=true`), đi qua private endpoint và dùng quyền Data Contributor của managed identity.
+- **Không xem được dữ liệu storage từ laptop.** Public access đã tắt, nên Storage browser trên portal hoặc Azure Storage Explorer sẽ báo lỗi 403. Muốn xem thì tạm bật: Storage account → **Networking** → **Public network access** = *Enabled from selected virtual networks and IP addresses* rồi thêm IP của máy cần truy cập. Xem xong thì tắt lại. Lần deploy Bicep tiếp theo cũng tự tắt lại. Container, queue, table **không** do infra tạo: app tự tạo lúc khởi động (`storage.ensure()` khi `ENSURE_STORAGE=true`), đi qua private endpoint và dùng quyền Data Contributor của managed identity.
 - Function vẫn kết nối storage bằng key, vì quyền gán role của pipeline chỉ cho 3 role Contributor (Blob, Queue, Table). Key này nằm trong app setting, không bị output ra ngoài. Traffic của Function tới storage đi qua private endpoint nhờ route all và Private DNS.
-- **APIM Consumption không nối vào VNet được.** Muốn APIM vào VNet phải dùng Developer (~50 USD) hoặc Standard v2, đều vượt 200k. Vì vậy APIM vẫn public và gọi web bằng API key.
-- **Frontend nằm trên Static Web Apps Free**, gọi thẳng APIM (SWA Free không link backend được; tính năng đó cần Standard ~9 USD/tháng). Vì frontend và APIM khác domain, `bicep/stacks/40-apim` đặt policy CORS toàn cục theo origin suy ra từ `customDomain` trong `pipelines/variables/<env>.yml` (`https://<customDomain>`; khi biến còn trống thì tạm dùng `http://localhost:5173` để lần provision APIM đầu vẫn có origin hợp lệ). Stack APIM không tra cứu SWA nên không phụ thuộc stack app. Custom domain chỉ được gắn sau khi đã có CNAME trên Cloudflare (xem bước 7 ở mục 3).
-- Infra chỉ tạo SWA và CORS. Import API, policy `set-header` cho `API_KEY` và deploy frontend (bằng deployment token của SWA) là việc của pipeline app.
+- **APIM Consumption không nối vào VNet được.** Muốn APIM vào VNet phải dùng Developer (~50 USD) hoặc Standard v2, đều vượt 200k. Vì vậy APIM vẫn public. Web App chỉ nhận request có header `X-Gateway-Secret` đúng giá trị (APIM gắn, giá trị lấy từ Key Vault); riêng `/api/health` mở cho smoke test.
+- **Frontend nằm trên Static Web Apps Free**, gọi thẳng APIM (SWA Free không link backend được; tính năng đó cần Standard ~9 USD/tháng). Vì frontend và APIM khác domain, `bicep/stacks/40-apim` đặt policy CORS toàn cục theo origin suy ra từ `customDomain` trong `pipelines/variables/<env>.yml` (`https://<customDomain>`; khi biến còn trống thì tạm dùng `http://localhost:5173` để lần provision APIM đầu vẫn có origin hợp lệ). Stack APIM không tra cứu SWA nên không phụ thuộc stack app. Custom domain chỉ được gắn sau khi đã có CNAME trên Cloudflare (xem bước 8 ở mục 3).
+- Infra tạo SWA, policy CORS và policy `set-header` `X-Gateway-Secret` trên APIM. Import API vào APIM là việc của pipeline app. Pipeline app hiện chưa có bước deploy frontend lên SWA.
 
 ## 7. Giới hạn hiện tại (nên biết)
 
-- Session lưu trong bộ nhớ (MemoryStore): chỉ ổn với **1 instance**; restart là đăng nhập lại. Nhiều instance thì đổi sang store ngoài.
+- Đăng nhập dùng JWT (stateless), ký bằng `SESSION_SECRET`; server không lưu session, nên mọi instance chỉ cần dùng chung `SESSION_SECRET` (lấy từ Key Vault).
 - Chưa có giới hạn số lần đăng nhập sai (rate limit).
-- `SESSION_SECRET`, `ADMIN_CODE`, `API_KEY` hiện do pipeline app đặt thành *app setting*. Muốn an toàn hơn thì chuyển sang Key Vault reference.
-- Bicep và pipeline **chưa được chạy thật trên Azure** (chỉ build/validate cú pháp).
-- Pipeline app-deploy deploy Function lên gói B1. Cần kiểm tra lại task deploy function ở repo `app` lần chạy đầu.
+- Key Vault bật public network access, vì APIM Consumption không vào VNet được; quyền đọc giới hạn bằng RBAC (Web App và APIM: Secrets User, người đặt secret: Secrets Officer). Web App route all traffic qua VNet, nên việc đọc Key Vault reference cũng đi qua VNet tới endpoint public của vault.
 
 ## 8. Từ khó
 
@@ -230,3 +243,5 @@ Cần biết:
 | APIM | API Management: cổng đứng trước API, quản lý key, giới hạn, chính sách |
 | SKU | Gói dịch vụ (vd B1, B2, B3) |
 | Append-only | Chỉ được thêm bản ghi mới, không sửa/xoá |
+| Key Vault reference | Chuỗi `@Microsoft.KeyVault(...)` trong app setting; App Service thay bằng giá trị thật lúc chạy |
+| Soft delete | Vault bị xoá vẫn được giữ lại một thời gian, có thể recover hoặc purge |

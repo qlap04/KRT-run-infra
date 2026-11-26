@@ -3,9 +3,9 @@ description: Rules for editing Bicep and pipelines (infra repo)
 globs: bicep/**,pipelines/**
 alwaysApply: false
 ---
-- Keep modules small in `bicep/modules/{network,compute,storage}/`; each stack `bicep/stacks/<stack>/main.bicep` only wires modules together; shared names and ids live in `bicep/modules/naming.bicep`.
+- Keep modules small in `bicep/modules/{network,compute,storage,security}/`; each stack `bicep/stacks/<stack>/main.bicep` only wires modules together; shared names and ids live in `bicep/modules/naming.bicep`.
 - Every parameter has a `@description`; the cheapest SKU is the default.
-- Never output secrets (listKeys is only used internally in app settings). App secrets are set by the app pipeline, not by Bicep; if infra ever needs a secret, declare a `@secure()` param and pass it from the pipeline as `$(NAME)` in the step template `parameters`.
+- Never output secrets (listKeys is only used internally in app settings). App secret values live only in Key Vault (stack `00-secret`), set by hand; Bicep writes Key Vault references and grants Key Vault Secrets User, never values. Do not pass secret values from a pipeline.
 - Validate with `az bicep lint --file bicep/stacks/<stack>/main.bicep` and `az bicep build --file bicep/stacks/<stack>/main.bicep --stdout > /dev/null`. Never run a deployment.
 - Pipelines: use templates in `pipelines/templates/` and per-environment variables in `pipelines/variables/<env>.yml`. Bicep parameters are passed inline by the pipelines (no `.bicepparam`); defaults live in the stack `main.bicep`.
 - All comments, descriptions and displayNames are in English.
