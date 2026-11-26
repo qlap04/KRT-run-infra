@@ -46,3 +46,25 @@ func appNetworkIds(subscriptionId string, base string) AppNetwork => {
 // resourceGroupId: resourceGroup().id, or the id of resourceGroupName(base) at subscription scope.
 @export()
 func storageAccountName(base string, resourceGroupId string) string => take(toLower(replace('st${base}${uniqueString(resourceGroupId)}', '-', '')), 24)
+
+// Key Vault of the secret stack (00-secret). Today it shares the resource group of the other
+// stacks; change only this function to move it to a separate group (e.g. 'rg-${base}-sec').
+@export()
+func secretResourceGroupName(base string) string => resourceGroupName(base)
+
+// Vault name (3-24 characters, globally unique), the same in every stack that builds it.
+@export()
+func keyVaultName(subscriptionId string, base string) string => take('kv${replace(base, '-', '')}${uniqueString(subscriptionId, secretResourceGroupName(base))}', 24)
+
+// Secret names in the vault. The values are set once by hand (az keyvault secret set), never by Bicep.
+@export()
+var keyVaultSecretNames = {
+  sessionSecret: 'session-secret'
+  adminCode: 'admin-code'
+  apiKey: 'api-key'
+  gatewaySecret: 'gateway-secret'
+}
+
+// App setting value that App Service resolves with the app's managed identity.
+@export()
+func keyVaultReference(vaultName string, secretName string) string => '@Microsoft.KeyVault(VaultName=${vaultName};SecretName=${secretName})'

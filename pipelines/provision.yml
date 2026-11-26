@@ -1,6 +1,6 @@
-# KRT-run provision (repo: infra): network, data and app stacks
-# (bicep/stacks/10-network, 20-data, 30-app), then provision-apim.yml.
-# One stage and one job so the three stacks share a single agent machine.
+# KRT-run provision (repo: infra): secret, network, data and app stacks
+# (bicep/stacks/00-secret, 10-network, 20-data, 30-app), then provision-apim.yml.
+# One stage and one job so the four stacks share a single agent machine.
 name: krtrun-provision-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:
@@ -9,6 +9,7 @@ trigger:
     - develop
   paths:
     include:
+    - bicep/stacks/00-secret/**
     - bicep/stacks/10-network/**
     - bicep/stacks/20-data/**
     - bicep/stacks/30-app/**
@@ -32,7 +33,7 @@ stages:
   # ${{ variables.serviceConnection }} (compile time; $(var) does not work there).
   variables:
   - template: variables/dev.yml
-  - group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group: subscriptionId
+  - group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group: subscriptionId, officerPrincipalId
   jobs:
   - deployment: Deploy
     displayName: Lint, what-if and deploy
@@ -42,6 +43,20 @@ stages:
         deploy:
           steps:
           - checkout: self
+          # Secret first: the app and APIM stacks reference this vault.
+          - template: templates/steps/bicep-deployment.yml
+            parameters:
+              stepLabel: Secret
+              deploymentName: $(projectName)-$(environment)-secret-$(Build.BuildId)
+              templateFile: ${{ 'bicep/stacks/00-secret/main.bicep' }}
+              serviceConnection: ${{ variables.serviceConnection }}
+              subscriptionId: $(subscriptionId)
+              location: $(location)
+              parameters:
+                prefix: $(projectName)
+                environment: $(environment)
+                location: $(location)
+                officerPrincipalId: $(officerPrincipalId)   # object id, not a secret
           - template: templates/steps/bicep-deployment.yml
             parameters:
               stepLabel: Network
