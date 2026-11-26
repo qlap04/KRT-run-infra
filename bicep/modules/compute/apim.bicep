@@ -11,9 +11,14 @@ param publisherName string
 @description('Browser origins allowed to call the gateway (the frontend on Static Web Apps)')
 param allowedOrigins array
 
-@secure()
-@description('Shared secret APIM adds to every backend call; the Web App rejects calls without it')
-param gatewaySecret string
+@description('Key Vault (secret stack) that holds gateway-secret, the value APIM adds to every backend call')
+param keyVaultName string
+
+@description('Resource group of that Key Vault')
+param keyVaultResourceGroup string
+
+@description('Name of the gateway secret in the vault')
+param gatewaySecretName string
 
 // Consumption: cheapest (1 million free calls/month) but it CANNOT join a VNet.
 resource apim 'Microsoft.ApiManagement/service@2023-09-01-preview' = {
@@ -21,18 +26,40 @@ resource apim 'Microsoft.ApiManagement/service@2023-09-01-preview' = {
   location: location
   tags: tags
   sku: { name: 'Consumption', capacity: 0 }
+  // System-assigned identity: reads the gateway secret from Key Vault.
+  identity: { type: 'SystemAssigned' }
   properties: {
     publisherEmail: publisherEmail
     publisherName: publisherName
   }
 }
 
-// Named value (secret): the policy reads it as {{gateway-secret}},
-// so the value never appears in the policy XML.
+// APIM may read secret values from the vault (Key Vault Secrets User).
+module kvApim '../security/key-vault-role.bicep' = {
+  name: 'kv-secrets-user-apim'
+  scope: resourceGroup(keyVaultResourceGroup)
+  params: {
+    vaultName: keyVaultName
+    principalId: apim.identity.principalId
+    principalType: 'ServicePrincipal'
+    role: 'SecretsUser'
+  }
+}
+
+// Named value (secret) linked to Key Vault: the policy reads it as {{gateway-secret}}, so the
+// value never appears in the policy XML, and Bicep and the pipeline never see it.
+// No version in the URI: APIM picks up a new secret version on its periodic refresh.
 resource gatewaySecretNv 'Microsoft.ApiManagement/service/namedValues@2023-09-01-preview' = {
   parent: apim
   name: 'gateway-secret'
-  properties: { displayName: 'gateway-secret', secret: true, value: gatewaySecret }
+  dependsOn: [ kvApim ] // the identity needs the role before APIM reads the secret
+  properties: {
+    displayName: 'gateway-secret'
+    secret: true
+    keyVault: {
+      secretIdentifier: 'https://${keyVaultName}${environment().suffixes.keyvaultDns}/secrets/${gatewaySecretName}'
+    }
+  }
 }
 
 // Global (all APIs) policy: CORS for the SPA. The frontend and APIM are on

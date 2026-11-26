@@ -28,7 +28,7 @@ stages:
   displayName: Provision APIM DEV
   variables:
   - template: variables/dev.yml
-  - group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group: subscriptionId, GATEWAY_SECRET
+  - group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group: subscriptionId (GATEWAY_SECRET is read from Key Vault by APIM)
   jobs:
   - deployment: Deploy
     displayName: Lint, what-if and deploy
@@ -55,5 +55,3 @@ stages:
                 # still empty, CORS falls back to the local Vite origin so the first
                 # APIM provision has a valid origin.
                 allowedOrigins: ${{ split(iif(eq(variables.customDomain, ''), 'http://localhost:5173', format('https://{0}', variables.customDomain)), ',') }}
-                # Secret variable from the group: masked in the logs, never echoed
-                gatewaySecret: $(GATEWAY_SECRET)

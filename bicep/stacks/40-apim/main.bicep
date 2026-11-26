@@ -1,6 +1,9 @@
 // APIM stack, deployed by its own pipeline (provision-apim.yml). Run last.
 // Subscription scope: creates rg-<prefix>-<environment>-apim and the APIM in it.
-// Independent of the other stacks: the CORS origins come in as a parameter.
+// No lookup of other stacks: the CORS origins come in as a parameter and the Key Vault name of the
+// secret stack (00-secret, deployed first by provision.yml) is built with naming.bicep.
+import { secretResourceGroupName, keyVaultName, keyVaultSecretNames } from '../../modules/naming.bicep'
+
 targetScope = 'subscription'
 
 @description('Resource name prefix')
@@ -19,10 +22,6 @@ param publisherName string
 
 @description('Browser origins allowed by the CORS policy (the frontend URLs)')
 param allowedOrigins array
-
-@secure()
-@description('Shared secret APIM sends to the Web App (X-Gateway-Secret)')
-param gatewaySecret string
 
 var base = '${prefix}-${environment}'
 var tags = {
@@ -46,7 +45,9 @@ module apim '../../modules/compute/apim.bicep' = {
     publisherEmail: publisherEmail
     publisherName: publisherName
     allowedOrigins: allowedOrigins
-    gatewaySecret: gatewaySecret
+    keyVaultName: keyVaultName(subscription().subscriptionId, base)
+    keyVaultResourceGroup: secretResourceGroupName(base)
+    gatewaySecretName: keyVaultSecretNames.gatewaySecret
   }
 }
 
