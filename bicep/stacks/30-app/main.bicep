@@ -3,7 +3,7 @@
 // Subscription scope: creates rg-<prefix>-<environment> (shared with the network stack) and app.bicep in it.
 // The network ids and the storage account name come from naming.bicep, so nothing is looked up.
 // APIM is a separate stack: bicep/stacks/40-apim with its own pipeline.
-import { resourceGroupName, appNetworkIds, storageAccountName } from '../../modules/naming.bicep'
+import { resourceGroupName, appNetworkIds, storageAccountName, secretResourceGroupName, keyVaultName } from '../../modules/naming.bicep'
 
 targetScope = 'subscription'
 
@@ -48,6 +48,8 @@ module app 'app.bicep' = {
     appNetwork: appNetworkIds(subscription().subscriptionId, base)
     storageAccountName: storageAccountName(base, rgApp.id)
     customDomain: customDomain
+    keyVaultName: keyVaultName(subscription().subscriptionId, base)
+    keyVaultResourceGroup: secretResourceGroupName(base)
   }
 }
 
