@@ -1,4 +1,4 @@
-// Data stack, deployed by its own pipeline (provision-data.yml) after the network stack.
+// Data stack, deployed by provision.yml (step Data) after the network stack.
 // Subscription scope: in rg-<prefix>-<environment> (shared with the network and app stacks),
 // creates the storage account and its private endpoints in snet-pe, registered in the
 // Private DNS zones of the network stack. The app stack assigns its roles on this account.

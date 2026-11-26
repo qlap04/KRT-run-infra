@@ -1,4 +1,4 @@
-// Network stack, deployed by its own pipeline (provision-network.yml). Run first.
+// Network stack, deployed by provision.yml (step Network) after the secret stack.
 // Subscription scope: creates rg-<prefix>-<environment> (shared with the data and app stacks)
 // with the VNet, its subnets and the Private DNS zones. Other stacks build the ids from naming.bicep.
 import { resourceGroupName, vnetName } from '../../modules/naming.bicep'

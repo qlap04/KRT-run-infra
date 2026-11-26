@@ -1,5 +1,5 @@
-// App stack, deployed by provision.yml after the network and data stacks
-// (provision-network.yml, provision-data.yml).
+// App stack, deployed by provision.yml (step App) after the secret, network and data stacks,
+// in the same job.
 // Subscription scope: creates rg-<prefix>-<environment> (shared with the network stack) and app.bicep in it.
 // The network ids and the storage account name come from naming.bicep, so nothing is looked up.
 // APIM is a separate stack: bicep/stacks/40-apim with its own pipeline.
