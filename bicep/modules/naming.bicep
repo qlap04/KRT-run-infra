@@ -47,10 +47,10 @@ func appNetworkIds(subscriptionId string, base string) AppNetwork => {
 @export()
 func storageAccountName(base string, resourceGroupId string) string => take(toLower(replace('st${base}${uniqueString(resourceGroupId)}', '-', '')), 24)
 
-// Key Vault of the secret stack (00-secret). Today it shares the resource group of the other
-// stacks; change only this function to move it to a separate group (e.g. 'rg-${base}-sec').
+// Key Vault of the secret stack (00-secret) lives in its own group, so destroy.yml
+// (which only deletes rg-<prefix>-<env> and rg-<prefix>-<env>-apim) leaves the vault and its secrets.
 @export()
-func secretResourceGroupName(base string) string => resourceGroupName(base)
+func secretResourceGroupName(base string) string => 'rg-${base}-sec'
 
 // Vault name (3-24 characters, globally unique), the same in every stack that builds it.
 @export()
