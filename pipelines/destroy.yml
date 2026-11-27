@@ -1,20 +1,17 @@
 # KRT-run DESTROY — manual only (trigger: none).
-# Safety: ADO Environment approval on <projectName>-<environment> (krtrun-dev).
 # Order: delete + purge APIM, then delete the APIM and app resource groups.
 name: krtrun-destroy-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger: none
 pr: none
 
-# One agent image for every job; ubuntu-latest moves with Microsoft's images.
 pool:
   vmImage: ubuntu-latest
 
-# Pipeline level so ${{ variables.* }} can build the per-env group and environment names.
 variables:
 - template: variables/common.yml
 - template: variables/dev.yml
-- group: ${{ variables.projectName }}-${{ variables.environment }}   # per-env variable group
+- group: ${{ variables.projectName }}-${{ variables.environment }}   
 
 stages:
 - stage: Destroy

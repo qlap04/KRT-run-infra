@@ -1,4 +1,4 @@
-# KRT-run provision APIM (repo: infra): bicep/stacks/40-apim. No dependency on other stacks; CORS origins are derived from customDomain.
+# KRT-run provision APIM (repo: infra): bicep/stacks/40-apim.
 name: krtrun-provision-apim-$(Date:yyyyMMdd)$(Rev:.r)
 
 trigger:
@@ -17,7 +17,6 @@ pr: none
 pool:
   vmImage: ubuntu-latest
 
-# Shared by all environments. Env-specific variables are loaded per stage.
 variables:
 - template: variables/common.yml
 - name: templateFile
@@ -51,7 +50,5 @@ stages:
                 location: $(location)
                 publisherEmail: $(publisherEmail)
                 publisherName: $(publisherName)
-                # Compile time (dev.yml, not the variable group). When customDomain is
-                # still empty, CORS falls back to the local Vite origin so the first
-                # APIM provision has a valid origin.
+                # Empty customDomain: CORS falls back to localhost:5173 (first provision).
                 allowedOrigins: ${{ split(iif(eq(variables.customDomain, ''), 'http://localhost:5173', format('https://{0}', variables.customDomain)), ',') }}

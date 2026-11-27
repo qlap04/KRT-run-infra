@@ -2,10 +2,6 @@
 variables:
   environment: dev
   serviceConnection: sc-krtrun-dev
+
   # Custom domain of the Static Web App (Cloudflare CNAME, DNS only, not proxied).
-  # Leave empty on the first provision: Azure validates the CNAME when the
-  # customDomains resource is created, and the target hostname is only known
-  # after the SWA exists (output swaHostname). After the record is in place,
-  # set this to krtrun-dev.kaicloudeg.online and rerun provision.yml, then
-  # provision-apim.yml. APIM CORS is derived from this value.
   customDomain: ''
