@@ -1,6 +1,6 @@
 // Secret stack, deployed by provision.yml as the first step (Secret), before network, data and app.
-// Subscription scope: creates the Key Vault in secretResourceGroupName() (today rg-<prefix>-<environment>,
-// shared with the other stacks) and gives the person who sets the secret values the Secrets Officer role.
+// Subscription scope: creates the Key Vault in secretResourceGroupName() (rg-<prefix>-<environment>-sec,
+// which destroy.yml keeps) and gives the person who sets the secret values the Secrets Officer role.
 // The vault holds the values only; Bicep never reads or writes them. The app and APIM stacks build
 // the vault name with keyVaultName() from naming.bicep, so nothing is looked up.
 import { secretResourceGroupName, keyVaultName } from '../../modules/naming.bicep'
